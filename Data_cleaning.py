@@ -7,36 +7,58 @@ def read_csv(path):
     return pd.read_csv(path)
 
 
-def create_nan(df):
+def sub_nan(df):
     return df.map(lambda x: np.nan if x == "***" else x)
 
 
-def sub_temp(df):
-    return df["Mean Temperature"].fillna((df["Max Temperature"].astype('float') + df["Min Temperature"].astype('float')) / 2)
+def sub_mean_temp(df):
+    df["Mean Temperature"] = df["Mean Temperature"].map(lambda x: float(x))
+    return df["Mean Temperature"].fillna((df["Max Temperature"] + df["Min Temperature"]) / 2)
 
 
 def sub_value(df):
-    return df.interpolate()
-
-# 152 - 182
+    df = df.map(lambda x: float(x))
+    return df.interpolate(method='linear')
 
 
 def data_cleaning(df):
     df = df.drop("Data Completeness", axis=1)
     df["Rainfall"] = df["Rainfall"].map(lambda x: 0.05 if x == "Trace" else x)
     df = df.dropna(subset=["Rainfall"])
-    df["Mean Temperature"] = create_nan(df["Mean Temperature"])
-    df["Mean Temperature"] = sub_temp(df)
-    print(df["Mean Temperature"].iloc[94:125])
-
+    df["Year"] = df["Date"].map(lambda x: int(x[0:4]))
+    df["Month"] = df["Date"].map(lambda x: int(x[5:8].split(".")[0]))
+    df["Day"] = df["Date"].map(lambda x: int(
+        x[8:].split(".")[0].split(" ")[1]))
+    df = df.sort_values(by=['Year', 'Month', 'Day'], ascending=True)
+    df = df.loc[df["Year"] >= 1990]
+    column_names = [
+        "Dew Point Temp.",
+        "Mean Temperature",
+        "Max Temperature",
+        "Min Temperature",
+        "Mean Cloud",
+        "Mean Pressure",
+        "Rainfall",
+        "Relative Humidity",
+        "Wet Bulb Temp.",
+        "Evaporation",
+        "Global Solar Radiation",
+        "Max UV",
+        "Mean UV",
+        "Prevailing Wind Direction",
+        "Total Sunlight",
+        "Wind Speed"
+    ]
+    for col in column_names:
+        df[col] = sub_nan(df[col])
+        print(f"{df[col]}: {df[col].isna().any()}")
     return df
 
 
 def main():
     path = "unclean output.csv"
     input_file = read_csv(path)
-    input_file = data_cleaning(input_file).reset_index()
-    print(input_file.head())
+    input_file = data_cleaning(input_file)
     os.remove("output.csv")
     input_file.to_csv("output.csv")
 
