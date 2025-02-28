@@ -51,16 +51,19 @@ def data_cleaning(df):
     ]
     for col in column_names:
         df[col] = sub_nan(df[col])
+        df[col] = sub_value(df[col])
         print(f"{df[col]}: {df[col].isna().any()}")
     return df
 
 
 def main():
-    path = "unclean output.csv"
+    path = r"weather_forecast/unclean output.csv"
     input_file = read_csv(path)
-    input_file = data_cleaning(input_file)
-    os.remove("output.csv")
-    input_file.to_csv("output.csv")
+    input_file = data_cleaning(input_file).set_index(
+        ["Year", "Month", "Day"]).drop("Date", axis=1).sort_index()
+
+    os.remove(r"weather_forecast/output.csv")
+    input_file.to_csv(r"weather_forecast/output.csv")
 
 
 if __name__ == "__main__":
