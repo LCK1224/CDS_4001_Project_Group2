@@ -14,29 +14,31 @@ def linear_regression(data, label):
 
 def load_data():
     df = pd.read_csv(r"weather_forecast/output.csv")
-    df = df.reset_index().iloc[3500:]
-    df1 = df.iloc[3500:]
-    dfy1 = df1["Max UV"]
-    print(dfy1)
-    dfy2 = df1["Mean UV"]
-    dfy3 = df1["Prevailing Wind Direction"]
-    dfy4 = df1["Wind Speed"]
+    df = df.reset_index()
+    df_temp = df.iloc[3500:]
+    dfy1 = df_temp["Max UV"]
+    nan_index_maxuv = df[df['Max UV'].isna()].index.tolist()
+    print(nan_index_maxuv)
+    dfy2 = df_temp["Mean UV"]
+    dfy3 = df_temp["Prevailing Wind Direction"]
+    dfy4 = df_temp["Wind Speed"]
 
-    dfx1 = df1.iloc[:, list(range(1, 15)) + [18]]
+    dfx1 = df_temp.iloc[:, list(range(1, 15)) + [18]]
     print(dfx1)
 
-    return dfx1, dfy1, dfy2, dfy3, dfy4, df
+    return dfx1, nan_index_maxuv, dfy1, dfy2, dfy3, dfy4, df
 
 
 def main():
-    data1, label1, label2, label3, label4, df = load_data()
+    data1, nan_index_maxuv, label1, label2, label3, label4, df = load_data()
     model, X_test, _ = linear_regression(data1, label1)
     prediction = model.predict(
-        df.iloc[0:3500].iloc[:, list(range(1, 15)) + [18]])
+        df.loc[nan_index_maxuv].iloc[:, list(range(1, 15)) + [18]]).tolist()
     print(prediction)
     df["Prediction"] = pd.Series(prediction)
-    print(df["Prediction"])
-    # df.to_csv(r"weather_forecast/output2.csv")
+    df.loc[nan_index_maxuv, "Max UV"] = df["Prediction"]
+    print(df["Max UV"])
+    df.to_csv(r"weather_forecast/output2.csv")
 
 
 if __name__ == "__main__":
