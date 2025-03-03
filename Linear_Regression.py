@@ -18,13 +18,15 @@ def load_data():
     df_temp = df.iloc[3500:]
     dfy1 = df_temp["Max UV"]
     nan_index_maxuv = df[df['Max UV'].isna()].index.tolist()
-    print(nan_index_maxuv)
+    nan_index_meanuv = df[df['Mean UV'].isna()].index.tolist()
+    nan_index_pressure = df[df['Mean Pressure'].isna()].index.tolist()
+    breakpoint()
     dfy2 = df_temp["Mean UV"]
     dfy3 = df_temp["Prevailing Wind Direction"]
     dfy4 = df_temp["Wind Speed"]
 
     dfx1 = df_temp.iloc[:, list(range(1, 15)) + [18]]
-    print(dfx1)
+    breakpoint()
 
     return dfx1, nan_index_maxuv, dfy1, dfy2, dfy3, dfy4, df
 
