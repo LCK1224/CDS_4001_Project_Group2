@@ -12,34 +12,45 @@ def linear_regression(data, label):
     return reg, X_test, y_test
 
 
+def load_na_row(df, col):
+    nan_rows = df[df[col].isna()].index.tolist()
+    return nan_rows
+
+
+def linear_reg_sub(df, train_df, nan_index, col_range, label):
+    model, _, _ = linear_regression(
+        train_df.iloc[:, col_range], train_df[label])
+    prediction = model.predict(df.loc[nan_index].iloc[:, col_range])
+
+    return pd.Series(prediction)
+
+
 def load_data():
     df = pd.read_csv(r"weather_forecast/output.csv")
     df = df.reset_index()
-    df_temp = df.iloc[3500:]
-    dfy1 = df_temp["Max UV"]
-    nan_index_maxuv = df[df['Max UV'].isna()].index.tolist()
-    nan_index_meanuv = df[df['Mean UV'].isna()].index.tolist()
-    nan_index_pressure = df[df['Mean Pressure'].isna()].index.tolist()
-    breakpoint()
-    dfy2 = df_temp["Mean UV"]
-    dfy3 = df_temp["Prevailing Wind Direction"]
-    dfy4 = df_temp["Wind Speed"]
+    train_df = df.iloc[3500:]
+    dfy1 = train_df["Max UV"]
+    nan_index_maxuv = load_na_row(df, "Max UV")
+    # nan_index_meanuv = load_na_row(df, "Mean UV")
+    # nan_index_pressure = load_na_row(df, "Mean Pressure")
+    # breakpoint()
+    dfy2 = train_df["Mean UV"]
+    dfy3 = train_df["Prevailing Wind Direction"]
+    dfy4 = train_df["Wind Speed"]
 
-    dfx1 = df_temp.iloc[:, list(range(1, 15)) + [18]]
-    breakpoint()
+    dfx1 = train_df.iloc[:, list(range(1, 15)) + [18]]
+    # breakpoint()
 
-    return dfx1, nan_index_maxuv, dfy1, dfy2, dfy3, dfy4, df
+    return df, train_df, nan_index_maxuv
 
 
 def main():
-    data1, nan_index_maxuv, label1, label2, label3, label4, df = load_data()
-    model, X_test, _ = linear_regression(data1, label1)
-    prediction = model.predict(
-        df.loc[nan_index_maxuv].iloc[:, list(range(1, 15)) + [18]]).tolist()
-    print(prediction)
-    df["Prediction"] = pd.Series(prediction)
-    df.loc[nan_index_maxuv, "Max UV"] = df["Prediction"]
-    print(df["Max UV"])
+    df, train_df, nan_index_maxuv = load_data()
+    col_range_max_uv = list(range(1, 15)) + [18]
+    df.loc[nan_index_maxuv, "Max UV"] = linear_reg_sub(
+        df, train_df, nan_index_maxuv, col_range_max_uv, "Max UV")
+    # print(prediction)
+    # print(df["Max UV"])
     df.to_csv(r"weather_forecast/output2.csv")
 
 
