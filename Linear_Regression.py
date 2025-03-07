@@ -2,6 +2,19 @@ import pandas as pd
 import numpy as np
 
 
+def tracker(func):
+    def wrapper(*args, **kwargs):
+        import time
+        start = time.time()
+        print(f"{func.__name__} is processing")
+        ret = func(*args, **kwargs)
+        end = time.time()
+        print(f"{func.__name__} time used:{end - start}")
+        return ret
+    return wrapper
+
+
+@tracker
 def linear_regression(data, label):
     from sklearn.linear_model import LinearRegression as lr
     from sklearn.model_selection import train_test_split as tts
@@ -12,11 +25,13 @@ def linear_regression(data, label):
     return reg, X_test, y_test
 
 
+@tracker
 def load_na_row(df, col):
     nan_rows = df[df[col].isna()].index.tolist()
     return nan_rows
 
 
+@tracker
 def linear_reg_sub(df, train_df, nan_index, col_range, label):
     model, _, _ = linear_regression(
         train_df.iloc[:, col_range], train_df[label])
@@ -25,6 +40,7 @@ def linear_reg_sub(df, train_df, nan_index, col_range, label):
     return pd.Series(prediction)
 
 
+@tracker
 def load_data():
     df = pd.read_csv(r"weather_forecast/output.csv")
     df = df.reset_index()
