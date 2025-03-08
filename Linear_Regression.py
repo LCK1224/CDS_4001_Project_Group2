@@ -42,32 +42,42 @@ def linear_reg_sub(df, train_df, nan_index, col_range, label):
 
 @tracker
 def load_data():
-    df = pd.read_csv(r"weather_forecast/output.csv")
+    df = pd.read_csv(r"output.csv")
     df = df.reset_index()
     train_df = df.iloc[3500:]
-    dfy1 = train_df["Max UV"]
     nan_index_maxuv = load_na_row(df, "Max UV")
-    # nan_index_meanuv = load_na_row(df, "Mean UV")
-    # nan_index_pressure = load_na_row(df, "Mean Pressure")
-    # breakpoint()
-    dfy2 = train_df["Mean UV"]
-    dfy3 = train_df["Prevailing Wind Direction"]
-    dfy4 = train_df["Wind Speed"]
-
-    dfx1 = train_df.iloc[:, list(range(1, 15)) + [18]]
+    nan_index_meanuv = load_na_row(df, "Mean UV")
+    nan_index_windir = load_na_row(df, "Prevailing Wind Direction")
+    nan_index_windspeed = load_na_row(df, "Prevailing Wind Direction")
     # breakpoint()
 
-    return df, train_df, nan_index_maxuv
+    return df, train_df, nan_index_maxuv, nan_index_meanuv, nan_index_windir, nan_index_windspeed
 
 
 def main():
-    df, train_df, nan_index_maxuv = load_data()
-    col_range_max_uv = list(range(1, 15)) + [18]
+    df, train_df, nan_index_maxuv, nan_index_meanuv, nan_index_windir, nan_index_windspeed = load_data()
+
+    # subsitute max uv
+    col_range_maxuv = list(range(1, 15)) + [18]
     df.loc[nan_index_maxuv, "Max UV"] = linear_reg_sub(
-        df, train_df, nan_index_maxuv, col_range_max_uv, "Max UV")
-    # print(prediction)
-    # print(df["Max UV"])
-    df.to_csv(r"weather_forecast/output2.csv")
+        df, train_df, nan_index_maxuv, col_range_maxuv, "Max UV")
+
+    # subsitute mean uv
+    col_range_meanuv = list(range(1, 16)) + [18]
+    df.loc[nan_index_meanuv, "Mean UV"] = linear_reg_sub(
+        df, train_df, nan_index_meanuv, col_range_meanuv, "Mean UV")
+
+    # subsitute Wind Speed
+    col_range_windspeed = list(range(1, 17)) + [18]
+    df.loc[nan_index_windspeed, "Wind Speed"] = linear_reg_sub(
+        df, train_df, nan_index_windspeed, col_range_windspeed, "Wind Speed")
+
+    # subsitute Prevailing Wind Direction
+    col_range_windir = list(range(1, 17)) + [18] + [19]
+    df.loc[nan_index_windir, "Prevailing Wind Direction"] = linear_reg_sub(
+        df, train_df, nan_index_windir, col_range_windir, "Prevailing Wind Direction")
+
+    df.to_csv(r"output2.csv")
 
 
 if __name__ == "__main__":
