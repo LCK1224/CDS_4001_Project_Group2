@@ -38,7 +38,7 @@ class DataProcessor:
         return reg
 
     @tracker
-    def fill_missing_values(self, col_name, col_range, round_result=False, non_zero=False, round_digit=-1):
+    def fill_missing_values(self, col_name, col_range, round_result=False, non_zero=False, round_digit=0):
         nan_index = self.load_na_row(col_name)
         self.train_df = self.df.copy().dropna()
         if non_zero:
@@ -70,7 +70,7 @@ def main():
     processor.fill_missing_values(
         "Wind Speed", list(range(4, 17)) + [18] + [20])
     processor.fill_missing_values("Prevailing Wind Direction", list(
-        range(4, 17)) + [18, 19, 20], round_result=True)
+        range(4, 17)) + [18, 19, 20], round_result=True, round_digit=-1)
 
     processor.save_to_csv("output2.csv")
 
