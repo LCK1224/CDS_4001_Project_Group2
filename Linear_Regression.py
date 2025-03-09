@@ -6,10 +6,10 @@ def tracker(func):
     def wrapper(*args, **kwargs):
         import time
         start = time.time()
-        print(f"{func.__name__} is processing")
+        # print(f"{func.__name__} is processing")
         ret = func(*args, **kwargs)
         end = time.time()
-        print(f"time used:{end - start}")
+        print(f"function:{func.__name__}\n{" ":13} time used:{end - start}")
         return ret
     return wrapper
 
@@ -41,13 +41,11 @@ class DataProcessor:
     def fill_missing_values(self, col_name, col_range, round_result=False, non_zero=False, round_digit=0):
         nan_index = self.load_na_row(col_name)
         self.train_df = self.df.copy().dropna()
-        if non_zero:
-            # using log1p to force coeficient to be positive
-            model = self.linear_regression(
-                self.train_df.iloc[:, col_range], self.train_df[col_name], non_zero)
-        else:
-            model = self.linear_regression(
-                self.train_df.iloc[:, col_range], self.train_df[col_name])
+
+        # using log1p to force coeficient to be positive
+        model = self.linear_regression(
+            self.train_df.iloc[:, col_range], self.train_df[col_name], non_zero)
+
         predictions = model.predict(
             self.df.iloc[nan_index, col_range])
         col_to_idx = {name: idx for idx, name in enumerate(self.df.columns)}
