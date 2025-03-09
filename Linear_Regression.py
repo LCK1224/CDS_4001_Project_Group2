@@ -19,7 +19,6 @@ class DataProcessor:
         self.df = pd.read_csv(filepath)
         self.df = self.df.reset_index()
         self.df["Day of Year"] = self.df.apply(self.day_of_year, axis=1)
-        self.train_df = self.df.iloc[3500:].reset_index().copy()
 
     def day_of_year(self, row):
         from datetime import datetime
@@ -39,13 +38,16 @@ class DataProcessor:
         return reg
 
     @tracker
-    def fill_missing_values(self, col_name, col_range, label, round_result=False):
+    def fill_missing_values(self, col_name, col_range, round_result=False):
         nan_index = self.load_na_row(col_name)
+        self.train_df = self.df.copy().dropna()
         model = self.linear_regression(
-            self.train_df.iloc[:, col_range], self.train_df[label])
+            self.train_df.iloc[:, col_range], self.train_df[col_name])
         predictions = model.predict(
-            self.train_df.loc[nan_index].iloc[:, col_range])
-        self.df.loc[nan_index, col_name] = pd.Series(
+            self.df.iloc[nan_index, col_range])
+        col_to_idx = {name: idx for idx, name in enumerate(self.df.columns)}
+        column_index = col_to_idx[col_name]
+        self.df.iloc[nan_index, column_index] = pd.Series(
             [round(i, -1) if round_result else i for i in predictions])
 
     @tracker
@@ -57,13 +59,13 @@ def main():
     processor = DataProcessor("output.csv")
 
     processor.fill_missing_values(
-        "Max UV", list(range(4, 15)) + [18] + [20], "Max UV")
+        "Max UV", list(range(4, 15)) + [18] + [20])
     processor.fill_missing_values(
-        "Mean UV", list(range(4, 16)) + [18] + [20], "Mean UV")
+        "Mean UV", list(range(4, 16)) + [18] + [20])
     processor.fill_missing_values(
-        "Wind Speed", list(range(4, 17)) + [18] + [20], "Wind Speed")
+        "Wind Speed", list(range(4, 17)) + [18] + [20])
     processor.fill_missing_values("Prevailing Wind Direction", list(
-        range(4, 17)) + [18, 19, 20], "Prevailing Wind Direction", round_result=True)
+        range(4, 17)) + [18, 19, 20], round_result=True)
 
     processor.save_to_csv("output2.csv")
 
