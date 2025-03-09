@@ -18,7 +18,15 @@ class DataProcessor:
     def __init__(self, filepath):
         self.df = pd.read_csv(filepath)
         self.df = self.df.reset_index()
-        self.train_df = self.df.iloc[3500:]
+        self.df["Day of Year"] = self.df.apply(self.day_of_year, axis=1)
+        self.train_df = self.df.iloc[3500:].reset_index().copy()
+
+    def day_of_year(self, row):
+        from datetime import datetime
+
+        date = datetime(int(row["Year"]), int(row["Month"]), int(row["Day"]))
+        day_of_year = (date - datetime(int(row["Year"]), 1, 1)).days + 1
+        return day_of_year
 
     @tracker
     def load_na_row(self, col):
@@ -27,20 +35,18 @@ class DataProcessor:
     @tracker
     def linear_regression(self, data, label):
         from sklearn.linear_model import LinearRegression as lr
-        from sklearn.model_selection import train_test_split as tts
-
-        X_train, X_test, y_train, y_test = tts(
-            data, label, test_size=0.3, random_state=1224)
-        reg = lr().fit(X_train, y_train)
-        return reg, X_test, y_test
+        reg = lr().fit(data, label)
+        return reg
 
     @tracker
-    def fill_missing_values(self, col_name, col_range, label):
+    def fill_missing_values(self, col_name, col_range, label, round_result=False):
         nan_index = self.load_na_row(col_name)
-        model, _, _ = self.linear_regression(
+        model = self.linear_regression(
             self.train_df.iloc[:, col_range], self.train_df[label])
-        predictions = model.predict(self.df.loc[nan_index].iloc[:, col_range])
-        self.df.loc[nan_index, col_name] = pd.Series(predictions)
+        predictions = model.predict(
+            self.train_df.loc[nan_index].iloc[:, col_range])
+        self.df.loc[nan_index, col_name] = pd.Series(
+            [round(i, -1) if round_result else i for i in predictions])
 
     @tracker
     def save_to_csv(self, output_path):
@@ -51,13 +57,13 @@ def main():
     processor = DataProcessor("output.csv")
 
     processor.fill_missing_values(
-        "Max UV", list(range(1, 15)) + [18], "Max UV")
+        "Max UV", list(range(4, 15)) + [18] + [20], "Max UV")
     processor.fill_missing_values(
-        "Mean UV", list(range(1, 16)) + [18], "Mean UV")
+        "Mean UV", list(range(4, 16)) + [18] + [20], "Mean UV")
     processor.fill_missing_values(
-        "Wind Speed", list(range(1, 17)) + [18], "Wind Speed")
+        "Wind Speed", list(range(4, 17)) + [18] + [20], "Wind Speed")
     processor.fill_missing_values("Prevailing Wind Direction", list(
-        range(1, 17)) + [18, 19], "Prevailing Wind Direction")
+        range(4, 17)) + [18, 19, 20], "Prevailing Wind Direction", round_result=True)
 
     processor.save_to_csv("output2.csv")
 
