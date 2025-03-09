@@ -32,23 +32,28 @@ class DataProcessor:
         return self.df[self.df[col].isna()].index.tolist()
 
     @tracker
-    def linear_regression(self, data, label):
+    def linear_regression(self, data, label, non_zero=False):
         from sklearn.linear_model import LinearRegression as lr
-        reg = lr().fit(data, label)
+        reg = lr(positive=non_zero).fit(data, label)
         return reg
 
     @tracker
-    def fill_missing_values(self, col_name, col_range, round_result=False):
+    def fill_missing_values(self, col_name, col_range, round_result=False, non_zero=False, round_digit=-1):
         nan_index = self.load_na_row(col_name)
         self.train_df = self.df.copy().dropna()
-        model = self.linear_regression(
-            self.train_df.iloc[:, col_range], self.train_df[col_name])
+        if non_zero:
+            # using log1p to force coeficient to be positive
+            model = self.linear_regression(
+                self.train_df.iloc[:, col_range], self.train_df[col_name], non_zero)
+        else:
+            model = self.linear_regression(
+                self.train_df.iloc[:, col_range], self.train_df[col_name])
         predictions = model.predict(
             self.df.iloc[nan_index, col_range])
         col_to_idx = {name: idx for idx, name in enumerate(self.df.columns)}
         column_index = col_to_idx[col_name]
         self.df.iloc[nan_index, column_index] = pd.Series(
-            [round(i, -1) if round_result else i for i in predictions])
+            [round(i, round_digit) if round_result else i for i in predictions])
 
     @tracker
     def save_to_csv(self, output_path):
