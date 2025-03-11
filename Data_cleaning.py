@@ -56,12 +56,12 @@ def data_cleaning(df):
 
 
 def main():
-    path = r"unclean output.csv"
+    path = r"weather_forecast/unclean output.csv"
     input_file = read_csv(path)
     input_file = data_cleaning(input_file).set_index(
         ["Year", "Month", "Day"]).drop("Date", axis=1).sort_index()
 
-    os.remove(r"output.csv")
+    # os.remove(r"output.csv")
     input_file.to_csv(r"output.csv")
 
 

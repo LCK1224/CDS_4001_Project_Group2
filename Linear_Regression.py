@@ -59,18 +59,18 @@ class DataProcessor:
 
 
 def main():
-    processor = DataProcessor("output.csv")
+    processor = DataProcessor(r"weather_forecast/output.csv")
 
     processor.fill_missing_values(
-        "Max UV", list(range(4, 15)) + [18] + [20])
+        "Max UV", list(range(4, 10)) + list(range(11, 15)) + [18] + [20])
     processor.fill_missing_values(
-        "Mean UV", list(range(4, 16)) + [18] + [20])
+        "Mean UV", list(range(4, 10)) + list(range(11, 16)) + [18] + [20])
     processor.fill_missing_values(
-        "Wind Speed", list(range(4, 17)) + [18] + [20])
-    processor.fill_missing_values("Prevailing Wind Direction", list(
-        range(4, 17)) + [18, 19, 20], round_result=True, round_digit=-1)
+        "Wind Speed", list(range(4, 10)) + list(range(11, 17)) + [18] + [20])
+    processor.fill_missing_values("Prevailing Wind Direction", list(range(
+        4, 10)) + list(range(11, 17)) + [18, 19, 20], round_result=True, round_digit=-1)
 
-    processor.save_to_csv("output2.csv")
+    processor.save_to_csv("output2s.csv")
 
 
 if __name__ == "__main__":
