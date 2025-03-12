@@ -20,12 +20,14 @@ def sub_nan(df):
 
 
 def main():
-    air_df = read_csv(r"weather_forecast/air pollutant 1994 2024.csv")
+    airpath = "air pollutant 1994 2024.csv"
+    air_df = read_csv(airpath)
     air_df = split_date(air_df)
     air_df = sub_nan(air_df)
     air_df = air_df.set_index(["Year", "Month", "Day"])
 
-    weather_df = read_csv(r"weather_forecast/output2.csv")
+    weatherpath = "output2.csv"
+    weather_df = read_csv(weatherpath)
 
     # Ensure Year, Month, Day columns are strings in weather_df as well
     weather_df["Year"] = weather_df["Year"].astype(str)

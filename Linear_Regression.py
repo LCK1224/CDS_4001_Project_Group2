@@ -2,23 +2,24 @@ import pandas as pd
 import numpy as np
 
 
-def tracker(func):
-    def wrapper(*args, **kwargs):
-        import time
-        start = time.time()
-        # print(f"{func.__name__} is processing")
-        ret = func(*args, **kwargs)
-        end = time.time()
-        print(f"function:{func.__name__}\n{" ":13} time used:{end - start}")
-        return ret
-    return wrapper
-
-
 class DataProcessor:
     def __init__(self, filepath):
         self.df = pd.read_csv(filepath)
         self.df = self.df.reset_index()
         self.df["Day of Year"] = self.df.apply(self.day_of_year, axis=1)
+
+    @staticmethod
+    def tracker(func):
+        def wrapper(*args, **kwargs):
+            import time
+            start = time.time()
+            # print(f"{func.__name__} is processing")
+            ret = func(*args, **kwargs)
+            end = time.time()
+            print(
+                f"function:{func.__name__}\n{" ":13} time used:{end - start}")
+            return ret
+        return wrapper
 
     def day_of_year(self, row):
         from datetime import datetime
@@ -59,7 +60,8 @@ class DataProcessor:
 
 
 def main():
-    processor = DataProcessor(r"weather_forecast/output.csv")
+    path = "output.csv"
+    processor = DataProcessor(path)
 
     processor.fill_missing_values(
         "Max UV", list(range(4, 10)) + list(range(11, 15)) + [18] + [20])
@@ -70,7 +72,7 @@ def main():
     processor.fill_missing_values("Prevailing Wind Direction", list(range(
         4, 10)) + list(range(11, 17)) + [18, 19, 20], round_result=True, round_digit=-1)
 
-    processor.save_to_csv("output2s.csv")
+    processor.save_to_csv("output2.csv")
 
 
 if __name__ == "__main__":
