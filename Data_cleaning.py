@@ -4,7 +4,8 @@ import os
 
 
 def read_csv(path):
-    return pd.read_csv(path)
+    df = pd.read_csv(path, low_memory=False).astype(str)
+    return df
 
 
 def sub_nan(df):
@@ -31,27 +32,15 @@ def data_cleaning(df):
         x[8:].split(".")[0].split(" ")[1]))
     df = df.sort_values(by=['Year', 'Month', 'Day'], ascending=True)
     df = df.loc[df["Year"] >= 1990]
-    column_names = [
-        "Dew Point Temp.",
-        "Mean Temperature",
-        "Max Temperature",
-        "Min Temperature",
-        "Mean Cloud",
-        "Mean Pressure",
-        "Rainfall",
-        "Relative Humidity",
-        "Wet Bulb Temp.",
-        "Evaporation",
-        "Global Solar Radiation",
-        "Max UV",
-        "Mean UV",
-        "Prevailing Wind Direction",
-        "Total Sunlight",
-        "Wind Speed"
-    ]
+
+    column_names = df.columns.values
+    skip_lst = ["Date", "Year", "Month", "Day"]
     for col in column_names:
-        df[col] = sub_nan(df[col])
-        df[col] = sub_value(df[col])
+        if col in skip_lst:
+            pass
+        else:
+            df[col] = sub_nan(df[col])
+            df[col] = sub_value(df[col])
     return df
 
 
@@ -59,9 +48,8 @@ def main():
     path = r"unclean output.csv"
     input_file = read_csv(path)
     input_file = data_cleaning(input_file).set_index(
-        ["Year", "Month", "Day"]).drop("Date", axis=1).sort_index()
+        ["Year", "Month", "Day"]).drop(["Date"], axis=1).sort_index()
 
-    # os.remove(r"output.csv")
     input_file.to_csv(r"output.csv")
 
 
