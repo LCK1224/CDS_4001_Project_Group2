@@ -39,7 +39,6 @@ def main():
     merge_df = pd.merge(weather_df, air_df, on=col_lst).drop(
         ["DATE", "STATION"], axis=1)
     merge_df = merge_df.drop(["Unnamed: 0"], axis=1)
-    print(merge_df["Max UV"])
     merge_df.to_csv("merge.csv")
 
 

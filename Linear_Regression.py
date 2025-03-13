@@ -11,12 +11,14 @@ class DataProcessor:
             self.df = pd.read_csv(filepath)
         if df is not None:
             self.df = df
-        self.df["Day of Year"] = self.df.apply(self.day_of_year, axis=1)
+        if "Day of Year" not in self.df.columns:
+            self.df["Day of Year"] = self.df.apply(self.day_of_year, axis=1)
         logging.basicConfig(level=logging.INFO,  # Set the logging level to INFO or lower
                             format='%(asctime)s - %(levelname)s - %(message)s'
                             )
 
     def getter(self):
+        '''return dataframe store in dataprocessor'''
         return self.df
 
     @staticmethod
@@ -73,7 +75,6 @@ class DataProcessor:
 
     @tracker
     def save_to_csv(self, output_path):
-        print(self.df)
         self.df.to_csv(output_path)
         return self
 
@@ -96,15 +97,18 @@ class Weather_DataProcessor(DataProcessor):
                 self.col_idx.append(self.df.columns.get_loc(col))
         return self.col_idx
 
-    def weather_fill_missing_values(self, round_result=False, non_zero=False, round_digit=0):
+    def weather_fill_missing_values(self, round_result=False, non_zero=False, round_digit=0, save_csv=None):
         self.weather_get_feature_data()
-        print(f"lable = {self.label}")
-        print(f"col_idx = {self.df.columns[self.col_idx]}")
+        # print(f"lable = {self.label}")
+        # print(f"col_idx = {self.df.columns[self.col_idx]}")
         super().fill_missing_values(self.label,
                                     self.col_idx,
                                     round_result=round_result,
                                     non_zero=non_zero,
                                     round_digit=round_digit)
+        if save_csv is not None:
+            return super().save_to_csv(str(save_csv))
+
         return self
 
 
@@ -126,7 +130,7 @@ class Air_DataProcessor(DataProcessor):
                 self.col_idx.append(self.df.columns.get_loc(col))
         return self.col_idx
 
-    def air_fill_missing_values(self, round_result=False, non_zero=False, round_digit=0):
+    def air_fill_missing_values(self, round_result=False, non_zero=False, round_digit=0, save_csv=None):
         self.air_get_feature_data()
         for p in self.pollutant_lst:
             super().fill_missing_values(p,
@@ -134,6 +138,9 @@ class Air_DataProcessor(DataProcessor):
                                         round_result=round_result,
                                         non_zero=non_zero,
                                         round_digit=round_digit)
+        if save_csv is not None:
+            return super().save_to_csv(str(save_csv) + ".csv")
+
         return self
 
 
@@ -144,6 +151,7 @@ def main():
     maxuv_processor = Weather_DataProcessor(
         filepath=path, weather_lst=["Max UV", "Mean UV", "Prevailing Wind Direction", "Wind Speed"], label="Max UV")
     maxuv_processor.weather_fill_missing_values()
+    print(maxuv_processor.weather_get_feature_data())
     cache = maxuv_processor.getter()
 
     meanuv_processor = Weather_DataProcessor(df=cache, weather_lst=[
@@ -159,18 +167,14 @@ def main():
     windir_processor = Weather_DataProcessor(
         df=cache, weather_lst=["Prevailing Wind Direction"], label="Prevailing Wind Direction")
     windir_processor.weather_fill_missing_values(
-        round_result=True, round_digit=-1)
-
-    windir_processor.save_to_csv("output2.csv")
+        round_result=True, round_digit=-1, save_csv="output2")
 
     air_pollutant.main()
 
     air_processor = Air_DataProcessor(
         "merge.csv", ["SO2", "NOX", "NO2", "CO", "RSP", "O3", "FSP"])
     air_processor.air_fill_missing_values(
-        non_zero=True, round_result=True, round_digit=0)
-
-    air_processor.save_to_csv("cleaned_dataset.csv")
+        non_zero=True, round_result=True, round_digit=0, save_csv="cleaned_dataset")
 
 
 if __name__ == "__main__":
