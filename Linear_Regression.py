@@ -151,7 +151,6 @@ def main():
     maxuv_processor = Weather_DataProcessor(
         filepath=path, weather_lst=["Max UV", "Mean UV", "Prevailing Wind Direction", "Wind Speed"], label="Max UV")
     maxuv_processor.weather_fill_missing_values()
-    print(maxuv_processor.weather_get_feature_data())
     cache = maxuv_processor.getter()
 
     meanuv_processor = Weather_DataProcessor(df=cache, weather_lst=[
