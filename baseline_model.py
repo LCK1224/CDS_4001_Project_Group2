@@ -33,7 +33,8 @@ def main():
         lambda x: rainintensity(x))
     # print(test["ewm_predict_label"])
     accuracy = (test["tmr rainfall"] == test["ewm_predict_label"]).mean()
-    print(accuracy)
+    # print(accuracy)
+    print(df['tmr rainfall'].value_counts())
     # df.to_csv("qwerty.csv")
 
 

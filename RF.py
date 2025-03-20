@@ -2,7 +2,6 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from sklearn.svm import LinearSVC
 
 
 def main():
@@ -17,9 +16,10 @@ def main():
         X, y, test_size=0.2, shuffle=False, random_state=1234)
     best_acc = 0
     best_depth = 0
+
     for i in range(1, 20):
         clf = RandomForestClassifier(
-            max_depth=i, random_state=0).fit(X_train, y_train)
+            max_depth=i, random_state=0, max_features='log2', n_jobs=-1, n_estimators=121).fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
         best_acc = accuracy if accuracy > best_acc else best_acc
