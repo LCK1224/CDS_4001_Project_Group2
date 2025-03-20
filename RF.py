@@ -1,0 +1,31 @@
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.svm import LinearSVC
+
+
+def main():
+    df = pd.read_csv(r"cleaned_datasetwlabeltodayyesterdaytmr.csv")
+    df = df.drop(["yesterday rainfall", "Rainfall label"], axis=1)
+    df["prev_rainfall"] = df["Rainfall"].shift(1)
+    # df["next_rainfall"] = df["Rainfall"].shift(-1)
+    df = df.dropna()
+    X = df.loc[:, df.columns != "tmr rainfall"]
+    y = df["tmr rainfall"]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, shuffle=False, random_state=1234)
+    best_acc = 0
+    best_depth = 0
+    for i in range(1, 20):
+        clf = RandomForestClassifier(
+            max_depth=i, random_state=0).fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        best_acc = accuracy if accuracy > best_acc else best_acc
+        best_depth = i if accuracy == best_acc else best_depth
+    print(f"best_acc = {best_acc} | best_depth = {best_depth}")
+
+
+if __name__ == "__main__":
+    main()
