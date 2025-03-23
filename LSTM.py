@@ -20,7 +20,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Step 2: Load and Preprocess the Data
-data = pd.read_csv('cleaned_datasetwlabeltodayyesterdaytmr.csv')
+data = pd.read_csv('balanced_dataset.csv')
 data = data.dropna(subset=['tmr rainfall'])
 print("Unique values in 'tmr rainfall':", data['tmr rainfall'].unique())
 
@@ -47,7 +47,7 @@ X_scaled = scaler.fit_transform(X)
 print(f"Shape of X_scaled: {X_scaled.shape}")
 
 # Step 3: Create Sequences (n-grams)
-sequence_length = 5
+sequence_length = 365
 X_sequences = []
 y_sequences = []
 
@@ -80,8 +80,8 @@ y_test_tensor = torch.LongTensor(y_test).to(device)
 
 train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
 test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
-train_loader = DataLoader(train_dataset, batch_size=256, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=400, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=400, shuffle=False)
 
 # Step 4: Define the LSTM Model
 
@@ -112,7 +112,7 @@ class RainfallLSTM(nn.Module):
 
 # Model parameters
 input_size = X_train.shape[2]
-hidden_size = 256
+hidden_size = 128
 num_layers = 5
 dropout_rate = 0.5
 print(f"Input size for LSTM: {input_size}")
@@ -121,11 +121,11 @@ model = RainfallLSTM(input_size, hidden_size, num_layers,
 
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Step 5: Train the Model with Early Stopping
-num_epochs = 600
-patience = 300
+num_epochs = 10000
+patience = 30
 best_loss = float('inf')
 early_stop_counter = 0
 loss_history = []

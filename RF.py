@@ -7,7 +7,9 @@ from sklearn.metrics import accuracy_score
 def main():
     df = pd.read_csv(r"cleaned_datasetwlabeltodayyesterdaytmr.csv")
     df = df.drop(["yesterday rainfall", "Rainfall label"], axis=1)
-    df["prev_rainfall"] = df["Rainfall"].shift(1)
+    for i in range(1, 8):
+        df[f"previous {i}th day rainfall"] = df["Rainfall"].shift(i)
+    # df["prev_rainfall"] = df["Rainfall"].shift(1)
     # df["next_rainfall"] = df["Rainfall"].shift(-1)
     df = df.dropna()
     X = df.loc[:, df.columns != "tmr rainfall"]
@@ -19,7 +21,7 @@ def main():
 
     for i in range(1, 20):
         clf = RandomForestClassifier(
-            max_depth=i, random_state=0, max_features='log2', n_jobs=-1, n_estimators=121).fit(X_train, y_train)
+            max_depth=i, random_state=0, max_features='log2', n_jobs=5, n_estimators=115).fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
         best_acc = accuracy if accuracy > best_acc else best_acc
