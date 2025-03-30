@@ -10,21 +10,35 @@ from itertools import cycle
 import random
 import joblib
 import pickle
+import msvcrt
 
+
+# def rainintensity(x):
+#     if x == 0:
+#         return 1
+#     if x < 9.9:
+#         return 1
+#     if 9 <= x < 30:
+#         return 2
+#     if 30 <= x < 50:
+#         return 3
+#     if 50 <= x < 70:
+#         return 4
+#     if x >= 70:
+#         return 5
 
 def rainintensity(x):
-    if x == 0:
+    if x <= 9.9:
         return 0
-    if x < 9:
+    if x <= 24.9:
         return 1
-    if 9 <= x < 30:
+    if x <= 49.9:
         return 2
-    if 30 <= x < 50:
+    if x <= 99.9:
         return 3
-    if 50 <= x < 70:
+    if x <= 249.9:
         return 4
-    if x >= 70:
-        return 5
+    return 5
 
 
 def set_seed(seed):
@@ -49,29 +63,25 @@ def set_seed(seed):
 class RainfallMLP(nn.Module):
     def __init__(self, num_features, num_classes=6):
         super().__init__()
+        self.dropout = nn.Dropout(0.2)
 
         self.all_layers = nn.Sequential(
-            nn.Linear(num_features, 4096),
-            nn.ReLU(),
-            nn.Linear(4096, 2048),
-            nn.ReLU(),
-            nn.Linear(2048, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
+            nn.Linear(num_features, 512),
+            nn.LeakyReLU(),
             nn.Linear(512, 256),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(256, 128),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(128, 64),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Linear(32, num_classes),
+            nn.LeakyReLU(),
+            nn.Linear(32, num_features),
 
         )
 
     def forward(self, x):
+        x = self.dropout(x)
         return self.all_layers(x)
 
 
@@ -87,10 +97,11 @@ class RainfallDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, tolerance):
     train_losses = []
     val_losses = []
     best_val_loss = float('inf')
+    early_terminate = 0
 
     for epoch in range(num_epochs):
         # Training phase
@@ -128,8 +139,15 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         print(f'Validation Loss: {avg_val_loss:.4f}')
 
         if avg_val_loss < best_val_loss:
+            early_terminate = 0
             best_val_loss = avg_val_loss
             joblib.dump(model, 'best_mlp_model.pkl')
+
+        else:
+            early_terminate += 1
+
+        if early_terminate == tolerance:
+            break
 
     return train_losses, val_losses
 
@@ -198,16 +216,26 @@ def main():
     print(f"Using device: {device}")
 
     # Load and prepare data
-    path = 'cleaned_datasetwlabeltodayyesterdaytmr.csv'
+    path = 'merge_with_typhoon.csv'
     df = pd.read_csv(path)
 
-    df = df.drop(["yesterday rainfall", "Rainfall label"], axis=1)
-    df["tmr rainfall"] = df["Rainfall"].map(lambda x: rainintensity(x))
+    df = df.drop(['Year', 'Month', 'Day', 'Unnamed: 0'], axis=1)
+    df["tmr rainfall"] = df["Rainfall"].shift(
+        -1).map(lambda x: rainintensity(x))
 
-    for i in range(1, 4):
-        df[f"previous {i}th day rainfall"] = df["Rainfall"].shift(i)
-
+    # for i in range(1, 4):
+    #     df[f"previous {i}th day rainfall"] = df["Rainfall"].shift(
+    #         i).map(lambda x: rainintensity(x))
+    df.to_csv('train_dataset.csv')
+    df = df.drop('Rainfall', axis=1)
     df = df.dropna()
+
+    print(df.drop('tmr rainfall', axis=1))
+    print('Press Any Key to continue...')
+    msvcrt.getch()
+    print(df['tmr rainfall'].value_counts())
+    print('Press Any Key to continue...')
+    msvcrt.getch()
 
     # Prepare features and target
     X = df.drop('tmr rainfall', axis=1).values
@@ -226,21 +254,22 @@ def main():
     val_dataset = RainfallDataset(X_val, y_val)
     test_dataset = RainfallDataset(X_test, y_test)
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32)
-    test_loader = DataLoader(test_dataset, batch_size=32)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=64)
+    test_loader = DataLoader(test_dataset, batch_size=64)
 
     # Initialize model
     input_size = X_train.shape[1]
     model = RainfallMLP(input_size).to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=2e-5)
 
     # Train and get losses
-    num_epochs = 100
+    num_epochs = 5000
+    tolerance = 100
     train_losses, val_losses = train_model(model, train_loader, val_loader,
-                                           criterion, optimizer, num_epochs, device)
+                                           criterion, optimizer, num_epochs, device, tolerance=tolerance)
 
     # Plot losses
     plot_losses(train_losses, val_losses)

@@ -5,11 +5,12 @@ from sklearn.metrics import accuracy_score
 
 
 def main():
-    df = pd.read_csv(r"cleaned_datasetwlabeltodayyesterdaytmr.csv")
-    df = df.drop(["yesterday rainfall", "Rainfall label"], axis=1)
-    for i in range(1, 8):
+    df = pd.read_csv(r"merge_with_typhoon.csv")
+    # df = df.drop(["yesterday rainfall", "Rainfall label"], axis=1)
+    for i in range(1, 4):
         df[f"previous {i}th day rainfall"] = df["Rainfall"].shift(i)
-    # df["prev_rainfall"] = df["Rainfall"].shift(1)
+    df["tmr rainfall"] = df["Rainfall"].shift(1)
+    df["tmr rainfall"] = df["tmr rainfall"].astype('string')
     # df["next_rainfall"] = df["Rainfall"].shift(-1)
     df = df.dropna()
     X = df.loc[:, df.columns != "tmr rainfall"]
@@ -26,6 +27,7 @@ def main():
         accuracy = accuracy_score(y_test, y_pred)
         best_acc = accuracy if accuracy > best_acc else best_acc
         best_depth = i if accuracy == best_acc else best_depth
+        print(accuracy)
     print(f"best_acc = {best_acc} | best_depth = {best_depth}")
 
 

@@ -64,17 +64,6 @@ def change_dur(x):
     return hr * 60 + mins
 
 
-def change_time_zone(x):
-    x = int(x.split(':')[0])
-    if x >= 0 and x < 6:
-        return 1
-    if x >= 6 and x < 12:
-        return 2
-    if x >= 12 and x < 18:
-        return 3
-    return 4
-
-
 def main():
     df = pd.read_csv('Typhoon.csv', names=[
                      'Intensity', 'Name', 'Signal', 'Start_time', 'Start_date', 'End_time', 'End_date', 'Duration'])
@@ -87,12 +76,26 @@ def main():
     df['Intensity'] = df['Intensity'].apply(change_intensity)
     df['Signal'] = df['Signal'].apply(change_signal)
     df['Duration'] = df['Duration'].apply(change_dur)
-    df['Start_time'] = df['Start_time'].apply(change_time_zone)
-    df['End_time'] = df['End_time'].apply(change_time_zone)
 
     # print(df.Signal.unique())
-    print(df[['Year', 'Month', 'Day', 'Intensity',
-          'Signal', "Duration", "Start_time", "End_time"]])
+    df = df[['Year', 'Month', 'Day', 'Intensity',
+             'Signal', "Duration"]]
+    df[['Year', 'Month', 'Day']] = df[[
+        'Year', 'Month', 'Day']].astype('int')
+    aggregated_df = df.groupby(['Year', 'Month', 'Day']).agg({
+        'Intensity': 'max',
+        'Signal': 'max',
+        'Duration': 'sum',
+    }).reset_index()
+    aggregated_df = aggregated_df.set_index(['Year', 'Month', 'Day'])
+
+    origin_df = pd.read_csv('cleaned_dataset.csv')
+    origin_df[['Year', 'Month', 'Day']] = origin_df[['Year', 'Month', 'Day']].astype(
+        'int')
+    origin_df = origin_df.set_index(['Year', 'Month', 'Day'])
+    newdf = pd.merge(origin_df, aggregated_df, how='left',
+                     left_index=True, right_index=True).fillna(0)
+    newdf.to_csv('merge_with_typhoon.csv')
 
 
 if __name__ == '__main__':
