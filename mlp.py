@@ -11,6 +11,8 @@ import random
 import joblib
 import pickle
 import msvcrt
+from sklearn.preprocessing import RobustScaler
+from imblearn.over_sampling import ADASYN
 
 
 # def rainintensity(x):
@@ -27,7 +29,11 @@ import msvcrt
 #     if x >= 70:
 #         return 5
 
+
 def rainintensity(x):
+    '''
+    Convert rainfall to oridinal data
+    '''
     if x <= 9.9:
         return 0
     if x <= 24.9:
@@ -61,12 +67,21 @@ def set_seed(seed):
 
 
 class RainfallMLP(nn.Module):
+    '''
+    MLP Model
+    '''
+
     def __init__(self, num_features, num_classes=6):
         super().__init__()
         self.dropout = nn.Dropout(0.2)
+        self.bn = nn.BatchNorm1d(num_features)
 
         self.all_layers = nn.Sequential(
-            nn.Linear(num_features, 512),
+            nn.Linear(num_features, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 512),
             nn.LeakyReLU(),
             nn.Linear(512, 256),
             nn.LeakyReLU(),
@@ -74,18 +89,24 @@ class RainfallMLP(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(128, 64),
             nn.LeakyReLU(),
-            nn.Linear(64, 32),
-            nn.LeakyReLU(),
-            nn.Linear(32, num_features),
+            nn.Linear(64, num_features),
 
         )
 
     def forward(self, x):
+        '''
+        Forward function
+        '''
+        x = self.bn(x)
         x = self.dropout(x)
         return self.all_layers(x)
 
 
 class RainfallDataset(Dataset):
+    '''
+    Convert features and labels to pytorch tensor
+    '''
+
     def __init__(self, X, y):
         self.X = torch.FloatTensor(X)
         self.y = torch.LongTensor(y)
@@ -97,7 +118,10 @@ class RainfallDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, tolerance):
+def train_model(model, train_loader, val_loader, loss_fn, optimizer, num_epochs, device, tolerance):
+    '''
+    Train model
+    '''
     train_losses = []
     val_losses = []
     best_val_loss = float('inf')
@@ -112,7 +136,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             labels = labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = loss_fn(outputs, labels)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -125,7 +149,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 inputs = inputs.to(device)
                 labels = labels.to(device)
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                loss = loss_fn(outputs, labels)
                 val_loss += loss.item()
 
         avg_train_loss = train_loss / len(train_loader)
@@ -134,9 +158,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         train_losses.append(avg_train_loss)
         val_losses.append(avg_val_loss)
 
-        print(f'Epoch [{epoch+1}/{num_epochs}]')
-        print(f'Training Loss: {avg_train_loss:.4f}')
-        print(f'Validation Loss: {avg_val_loss:.4f}')
+        if epoch % 10 == 0:
+            print(f'Epoch [{epoch+1}/{num_epochs}]')
+            print(f'Training Loss: {avg_train_loss:.4f}')
+            print(f'Validation Loss: {avg_val_loss:.4f}')
 
         if avg_val_loss < best_val_loss:
             early_terminate = 0
@@ -212,6 +237,10 @@ def plot_roc_curves(model, test_loader, device, num_classes=6):
 
 def main():
     set_seed(1234)
+    NUM_EPOCHS = 5000
+    TOLERANCE = 20
+    LR = 1e-3
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -223,33 +252,51 @@ def main():
     df["tmr rainfall"] = df["Rainfall"].shift(
         -1).map(lambda x: rainintensity(x))
 
-    # for i in range(1, 4):
-    #     df[f"previous {i}th day rainfall"] = df["Rainfall"].shift(
-    #         i).map(lambda x: rainintensity(x))
-    df.to_csv('train_dataset.csv')
-    df = df.drop('Rainfall', axis=1)
+    temp_df = df[["Day of Year", "Signal",
+                  "Intensity", "Prevailing Wind Direction", "Rainfall"]].copy()
+
+    temp_df["day_sin"] = temp_df["Day of Year"].map(
+        lambda x: np.sin(x / 365 * 2 * np.pi))
+    temp_df["day_cos"] = temp_df["Day of Year"].map(
+        lambda x: np.cosh(x / 365 * 2 * np.pi))
+    temp_df["wind_sin"] = temp_df["Prevailing Wind Direction"].map(
+        lambda x: np.cosh(x / 360 * 2 * np.pi))
+    temp_df["wind_cos"] = temp_df["Prevailing Wind Direction"].map(
+        lambda x: np.cosh(x / 360 * 2 * np.pi))
+
+    for i in range(1, 4):
+        temp_df[f"previous {i}th day rainfall"] = temp_df["Rainfall"].shift(
+            i).map(lambda x: rainintensity(x))
+
+    temp_df = temp_df.drop(
+        ["Day of Year", "Prevailing Wind Direction",  "Rainfall"], axis=1)
+    df = df.drop(
+        ["Day of Year", "Prevailing Wind Direction", "Rainfall"], axis=1)
+
+    scaler = RobustScaler()
+    df[df.columns] = scaler.fit_transform(df[df.columns])
+    df = pd.concat([temp_df, df], axis=1)
     df = df.dropna()
-
-    print(df.drop('tmr rainfall', axis=1))
     print('Press Any Key to continue...')
+    print(df)
     msvcrt.getch()
-    print(df['tmr rainfall'].value_counts())
-    print('Press Any Key to continue...')
-    msvcrt.getch()
+    df.to_csv('train_dataset.csv')
 
-    # Prepare features and target
     X = df.drop('tmr rainfall', axis=1).values
     y = df['tmr rainfall'].values
+    print(df['tmr rainfall'].value_counts())
+    msvcrt.getch()
+    ad = ADASYN(sampling_strategy={1: 3000, 2: 3000,
+                3: 3000, 4: 3000, 5: 3000}, random_state=1234, n_neighbors=6)
+    X, y = ad.fit_resample(X, y)
+    msvcrt.getch()
 
-    # Split into train+val and test
     X_temp, X_test, y_temp, y_test = train_test_split(
         X, y, test_size=0.2, random_state=1234, shuffle=True)
 
-    # Split train+val into train and validation
     X_train, X_val, y_train, y_val = train_test_split(
         X_temp, y_temp, test_size=0.25, random_state=1234, shuffle=True)
 
-    # Create datasets and dataloaders
     train_dataset = RainfallDataset(X_train, y_train)
     val_dataset = RainfallDataset(X_val, y_val)
     test_dataset = RainfallDataset(X_test, y_test)
@@ -258,18 +305,15 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=64)
     test_loader = DataLoader(test_dataset, batch_size=64)
 
-    # Initialize model
     input_size = X_train.shape[1]
     model = RainfallMLP(input_size).to(device)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=2e-5)
+    loss_fn = nn.CrossEntropyLoss()
 
-    # Train and get losses
-    num_epochs = 5000
-    tolerance = 100
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+
     train_losses, val_losses = train_model(model, train_loader, val_loader,
-                                           criterion, optimizer, num_epochs, device, tolerance=tolerance)
+                                           loss_fn, optimizer, NUM_EPOCHS, device, tolerance=TOLERANCE)
 
     # Plot losses
     plot_losses(train_losses, val_losses)
@@ -277,7 +321,7 @@ def main():
     with open('best_mlp_model.pkl', 'rb') as file:
         best_model = pickle.load(file)
         print("best model selected")
-        print(model)
+        print(best_model)
 
     # Test accuracy
     best_model.eval()
