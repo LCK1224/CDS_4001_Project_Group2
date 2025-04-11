@@ -11,7 +11,7 @@ import random
 import joblib
 import pickle
 import msvcrt
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import RobustScaler, MinMaxScaler
 from imblearn.over_sampling import ADASYN
 
 
@@ -73,7 +73,7 @@ class RainfallMLP(nn.Module):
 
     def __init__(self, num_features, num_classes=6):
         super().__init__()
-        self.dropout = nn.Dropout(0.2)
+        # self.dropout = nn.Dropout(0.1)
         self.bn = nn.BatchNorm1d(num_features)
 
         self.all_layers = nn.Sequential(
@@ -82,6 +82,10 @@ class RainfallMLP(nn.Module):
             nn.Linear(64, 256),
             nn.LeakyReLU(),
             nn.Linear(256, 512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 1024),
+            nn.LeakyReLU(),
+            nn.Linear(1024, 512),
             nn.LeakyReLU(),
             nn.Linear(512, 256),
             nn.LeakyReLU(),
@@ -98,7 +102,7 @@ class RainfallMLP(nn.Module):
         Forward function
         '''
         x = self.bn(x)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         return self.all_layers(x)
 
 
@@ -158,11 +162,6 @@ def train_model(model, train_loader, val_loader, loss_fn, optimizer, num_epochs,
         train_losses.append(avg_train_loss)
         val_losses.append(avg_val_loss)
 
-        if epoch % 10 == 0:
-            print(f'Epoch [{epoch+1}/{num_epochs}]')
-            print(f'Training Loss: {avg_train_loss:.4f}')
-            print(f'Validation Loss: {avg_val_loss:.4f}')
-
         if avg_val_loss < best_val_loss:
             early_terminate = 0
             best_val_loss = avg_val_loss
@@ -170,6 +169,12 @@ def train_model(model, train_loader, val_loader, loss_fn, optimizer, num_epochs,
 
         else:
             early_terminate += 1
+
+        if epoch % 10 == 0:
+            print(f'Epoch [{epoch+1}/{num_epochs}]')
+            print(f'Training Loss: {avg_train_loss:.4f}')
+            print(f'Validation Loss: {avg_val_loss:.4f}')
+            print(f'Best validation Loss: {best_val_loss:.4f}')
 
         if early_terminate == tolerance:
             break
@@ -264,18 +269,19 @@ def main():
     temp_df["wind_cos"] = temp_df["Prevailing Wind Direction"].map(
         lambda x: np.cosh(x / 360 * 2 * np.pi))
 
-    for i in range(1, 4):
-        temp_df[f"previous {i}th day rainfall"] = temp_df["Rainfall"].shift(
-            i).map(lambda x: rainintensity(x))
+    # for i in range(1, 4):
+    #     temp_df[f"previous {i}th day rainfall"] = temp_df["Rainfall"].shift(
+    #         i).map(lambda x: rainintensity(x))
 
     temp_df = temp_df.drop(
         ["Day of Year", "Prevailing Wind Direction",  "Rainfall"], axis=1)
     df = df.drop(
-        ["Day of Year", "Prevailing Wind Direction", "Rainfall"], axis=1)
+        ["Day of Year", "Prevailing Wind Direction", "Rainfall", "Intensity", "Signal"], axis=1)
 
     scaler = RobustScaler()
-    df[df.columns] = scaler.fit_transform(df[df.columns])
+    # df[df.columns] = scaler.fit_transform(df[df.columns])
     df = pd.concat([temp_df, df], axis=1)
+    df[df.columns] = scaler.fit_transform(df[df.columns])
     df = df.dropna()
     print('Press Any Key to continue...')
     print(df)
