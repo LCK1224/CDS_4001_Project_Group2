@@ -186,7 +186,10 @@ def main():
         lambda x: np.sin(x / 360 * 2 * np.pi))
     df["wind_cos"] = df["Prevailing Wind Direction"].map(
         lambda x: np.cos(x / 360 * 2 * np.pi))
-    df = df.drop(["Day of Year", "Year", "Month", "Day"], axis=1)
+
+    df["tmr_temp"] = df["Mean Temperature"].shift(-1)
+    df = df.drop(["Day of Year", "Year", "Month",
+                 "Day", "Mean Temperature"], axis=1)
 
     df.to_csv(r"Data/cleaned_dataset.csv", index=False)
 
