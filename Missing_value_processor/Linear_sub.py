@@ -84,17 +84,17 @@ class DataProcessor:
 
 
 class Weather_DataProcessor(DataProcessor):
-    def __init__(self, filepath=None, df=None, label=""):
+    def __init__(self, filepath=None, df=None, label="", skip_lst=[]):
         super().__init__(filepath, df)
         self.label = label
         self.col_idx = []
+        self.skip_lst = skip_lst
 
     def weather_get_feature_data(self):
         column_names = self.df.columns.values
-        skip_lst = self.df.columns[self.df.isna().any()].tolist()
 
         for col in column_names:
-            if col in skip_lst:
+            if col in self.skip_lst:
                 pass
             else:
                 self.col_idx.append(self.df.columns.get_loc(col))
@@ -116,17 +116,17 @@ class Weather_DataProcessor(DataProcessor):
 
 
 class Air_DataProcessor(DataProcessor):
-    def __init__(self, filepath=None, df=None, pollutant_lst=[]):
+    def __init__(self, filepath=None, df=None, pollutant_lst=[], skip_lst=[]):
         super().__init__(filepath, df)
         self.pollutant_lst = pollutant_lst
         self.col_idx = []
+        self.skip_lst = skip_lst
 
     def air_get_feature_data(self):
         column_names = self.df.columns.values
-        skip_lst = self.df.columns[self.df.isna().any()].tolist()
 
         for col in column_names:
-            if col in skip_lst:
+            if col in self.skip_lst:
                 pass
             else:
                 self.col_idx.append(self.df.columns.get_loc(col))
@@ -149,29 +149,38 @@ class Air_DataProcessor(DataProcessor):
 def main():
 
     path = "Data/clean_output.csv"
+    df = pd.read_csv(path)
+
+    skip_lst = df.columns[df.isna().any()].tolist()
 
     maxuv_processor = Weather_DataProcessor(
-        filepath=path, label="Max UV")
-    maxuv_processor.weather_fill_missing_values()
+        df=df, label="Max UV", skip_lst=skip_lst)
+    maxuv_processor.weather_fill_missing_values(positive=True)
     cache = maxuv_processor.getter()
 
-    meanuv_processor = Weather_DataProcessor(df=cache, label="Mean UV")
-    meanuv_processor.weather_fill_missing_values()
+    meanuv_processor = Weather_DataProcessor(
+        df=cache, label="Mean UV", skip_lst=skip_lst)
+    meanuv_processor.weather_fill_missing_values(positive=True)
     cache = meanuv_processor.getter()
 
     winspeed_processor = Weather_DataProcessor(
-        df=cache, label="Wind Speed")
+        df=cache, label="Wind Speed", skip_lst=skip_lst)
     winspeed_processor.weather_fill_missing_values()
     cache = meanuv_processor.getter()
 
     windir_processor = Weather_DataProcessor(
-        df=cache, label="Prevailing Wind Direction")
+        df=cache, label="Prevailing Wind Direction", skip_lst=skip_lst)
     windir_processor.weather_fill_missing_values(
         round_result=True, round_digit=-1, positive=True)
     cache = windir_processor.getter()
+    eva_processor = Weather_DataProcessor(
+        df=cache, label="Evaporation", skip_lst=skip_lst)
+    eva_processor.weather_fill_missing_values(
+        round_result=True, round_digit=-1, positive=True)
+    cache = eva_processor.getter()
 
     air_processor = Air_DataProcessor(
-        df=cache, pollutant_lst=["SO2", "NOX", "NO2", "CO", "RSP", "O3", "FSP"])
+        df=cache, pollutant_lst=["SO2", "NOX", "NO2", "CO", "RSP", "O3", "FSP"], skip_lst=skip_lst)
     air_processor.air_fill_missing_values(
         positive=True, round_result=True, round_digit=0)
     df = air_processor.getter()
@@ -189,7 +198,7 @@ def main():
 
     df["tmr_temp"] = df["Mean Temperature"].shift(-1)
     df = df.drop(["Day of Year", "Year", "Month",
-                 "Day", "Mean Temperature"], axis=1)
+                 "Day", "Mean Temperature", "Prevailing Wind Direction"], axis=1)
 
     df.to_csv(r"Data/cleaned_dataset.csv", index=False)
 

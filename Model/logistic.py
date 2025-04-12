@@ -26,15 +26,11 @@ def tempintensity(x):
 def main():
     df = pd.read_csv(
         r"C:\Users\leech\Desktop\weather_forecast\Data\cleaned_dataset.csv")
-    df["Mean Temperature"] = df["Mean Temperature"].shift(-1)
-    df["Mean Temperature"] = df["Mean Temperature"].map(
+    df["tmr_temp"] = df["tmr_temp"].map(
         lambda x: tempintensity(x))
-    df["Mean Temperature"] = df["Mean Temperature"].astype('string')
-    # df["next_rainfall"] = df["Rainfall"].shift(-1)
-    df = df.dropna()
-    X = df.drop('Mean Temperature', axis=1).values
-    y = df['Mean Temperature'].values
-    print(df['Mean Temperature'].value_counts())
+    X = df.drop('tmr_temp', axis=1).values
+    y = df['tmr_temp'].values
+    print(df['tmr_temp'].value_counts())
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, shuffle=False, random_state=1234)
 
