@@ -4,9 +4,30 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def tempintensity(x):
+    '''
+    Convert rainfall to oridinal data
+    '''
+    if x <= 10.0:
+        return 0
+    if x <= 15.0:
+        return 1
+    if x <= 20.0:
+        return 2
+    if x <= 25.0:
+        return 3
+    if x <= 30.0:
+        return 4
+    return 5
+
+
 def main():
-    df = pd.read_csv(r"Data\unclean_output.csv")
+    df = pd.read_csv(
+        r'C:\Users\leech\Desktop\weather_forecast\Data\cleaned_dataset.csv')
     data = df.copy()
+    data["Mean Temperature"] = data["Mean Temperature"].apply(tempintensity)
+    data["Mean Temperature"] = data["Mean Temperature"].shift(-1)
+    data = data.dropna()
     if 'Prevailing Wind Direction' in data.columns:
         le = LabelEncoder()
         data['Prevailing Wind Direction'] = le.fit_transform(
@@ -21,7 +42,7 @@ def main():
     y = data[target_column]
 
     # Step 4: Train Random Forest Regressor
-    rf = RandomForestRegressor(n_estimators=100, random_state=1234)
+    rf = RandomForestRegressor()
     rf.fit(X, y)
 
     # Step 5: Extract feature importance
@@ -37,6 +58,8 @@ def main():
     # Print feature importance
     print("Feature Importance:")
     print(importance_df)
+
+    return importance_df
 
 
 if __name__ == '__main__':
