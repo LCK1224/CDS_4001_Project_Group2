@@ -199,7 +199,7 @@ def main():
     df["tmr_temp"] = df["Mean Temperature"].shift(-1)
     df = df.drop(["Day of Year", "Year", "Month",
                  "Day", "Mean Temperature", "Prevailing Wind Direction"], axis=1)
-
+    df = df.dropna()
     df.to_csv(r"Data/cleaned_dataset.csv", index=False)
 
 
