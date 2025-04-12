@@ -6,7 +6,7 @@ import numpy as np
 # relocated the dataset to the same directory as the script
 os.chdir(os.path.dirname(__file__))
 
-df = pd.read_csv('../cleaned_dataset.csv')
+df = pd.read_csv('cleaned_dataset.csv')
 
 plt.style.use('ggplot')
 
