@@ -165,7 +165,7 @@ def main():
 
     winspeed_processor = Weather_DataProcessor(
         df=cache, label="Wind Speed", skip_lst=skip_lst)
-    winspeed_processor.weather_fill_missing_values()
+    winspeed_processor.weather_fill_missing_values(positive=True)
     cache = meanuv_processor.getter()
 
     windir_processor = Weather_DataProcessor(

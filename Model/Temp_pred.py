@@ -234,42 +234,19 @@ def main():
     set_seed(1234)
     NUM_EPOCHS = 5000
     TOLERANCE = 30
-    LR = 1e-4
+    LR = 1e-3
     BATCH_SIZE = 32
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Load and prepare data
-    path = 'merge_with_typhoon.csv'
+    path = r'Data/cleaned_dataset.csv'
     df = pd.read_csv(path)
-
-    df = df.drop(['Year', 'Month', 'Day', 'Unnamed: 0'], axis=1)
-    # df["tmr rainfall"] = df["Rainfall"].shift(
-    #     -1).map(lambda x: tempintensity(x))
-    df["label"] = df["Mean Temperature"].map(
-        lambda x: tempintensity(x))
-    df["label"] = df["label"].shift(1)
-    temp_df = df[["Day of Year", "Signal",
-                  "Intensity", "Prevailing Wind Direction", "label"]].copy()
-
-    temp_df["day_sin"] = temp_df["Day of Year"].map(
-        lambda x: np.sin(x / 365 * 2 * np.pi))
-    temp_df["day_cos"] = temp_df["Day of Year"].map(
-        lambda x: np.cos(x / 365 * 2 * np.pi))
-    temp_df["wind_sin"] = temp_df["Prevailing Wind Direction"].map(
-        lambda x: np.sin(x / 360 * 2 * np.pi))
-    temp_df["wind_cos"] = temp_df["Prevailing Wind Direction"].map(
-        lambda x: np.cos(x / 360 * 2 * np.pi))
-
-    temp_df = temp_df.drop(
-        ["Day of Year", "Prevailing Wind Direction"], axis=1)
-    df = df.drop(
-        ["Day of Year", "Prevailing Wind Direction", "Intensity", "Signal", "label"], axis=1)
-
+    df["tmr_temp"] = df["tmr_temp"].apply(tempintensity)
     scaler = RobustScaler()
-    df[df.columns] = scaler.fit_transform(df[df.columns])
-    df = pd.concat([temp_df, df], axis=1)
+    df.loc[:, ~df.columns.isin(
+        ["day_sin", "day_cos", "win_sin", "win_cos"])] = scaler.fit_transform(df[df.columns])
     # df[df.columns] = scaler.fit_transform(df[df.columns])
     df = df.dropna()
     print('Press Any Key to continue...')
@@ -281,9 +258,9 @@ def main():
                  "Max Temperature", "Min Temperature", "Mean Temperature"], axis=1)
 
     # print(df.drop('tmr rainfall', axis=1).columns)
-    X = df.drop('label', axis=1).values
-    y = df['label'].values
-    print(df['label'])
+    X = df.drop('tmr_temp', axis=1).values
+    y = df['tmr_temp'].values
+    print(df['tmr_temp'])
     msvcrt.getch()
     # ad = ADASYN(sampling_strategy={1: 3000, 2: 3000,
     #             3: 3000, 4: 3000, 5: 3000}, random_state=1234, n_neighbors=6)
