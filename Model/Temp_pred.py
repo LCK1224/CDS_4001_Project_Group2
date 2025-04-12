@@ -248,7 +248,6 @@ def main():
     df.loc[:, ~df.columns.isin(
         ["day_sin", "day_cos", "win_sin", "win_cos"])] = scaler.fit_transform(df[df.columns])
     # df[df.columns] = scaler.fit_transform(df[df.columns])
-    df = df.dropna()
     print('Press Any Key to continue...')
     print(df.columns)
     msvcrt.getch()

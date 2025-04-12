@@ -196,7 +196,7 @@ def main():
     df["wind_cos"] = df["Prevailing Wind Direction"].map(
         lambda x: np.cos(x / 360 * 2 * np.pi))
 
-    df["tmr_temp"] = df["Mean Temperature"].shift(-1)
+    # df["tmr_temp"] = df["Mean Temperature"].shift(-1)
     df = df.drop(["Day of Year", "Year", "Month",
                  "Day", "Mean Temperature", "Prevailing Wind Direction"], axis=1)
     df = df.dropna()
