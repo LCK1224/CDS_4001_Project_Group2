@@ -6,20 +6,41 @@ import numpy as np
 from sklearn.metrics import f1_score, precision_score, recall_score
 
 
+def tempintensity(x):
+    '''
+    Convert rainfall to oridinal data
+    '''
+    if x <= 10.0:
+        return 0
+    if x <= 15.0:
+        return 1
+    if x <= 20.0:
+        return 2
+    if x <= 25.0:
+        return 3
+    if x <= 30.0:
+        return 4
+    return 5
+
+
 def main():
-    df = pd.read_csv(r"train_dataset.csv")
-    # df = df.drop(["yesterday rainfall", "Rainfall label"], axis=1)
-    # df["tmr rainfall"] = df["Rainfall"].shift(1)
-    # for i in range(1, 4):
-    #     df[f"previous {i}th day rainfall"] = df["Rainfall"].shift(i)
+    df = pd.read_csv(r"merge_with_typhoon.csv")
+    df["label"] = df["Mean Temperature"].shift(1)
+    df["label"] = df["label"].map(
+        lambda x: tempintensity(x))
+    df["label"] = df["label"].astype('string')
+    df = df.drop(["Max Temperature", "Mean Temperature",
+                 "Min Temperature"], axis=1)
+    # df["next_rainfall"] = df["Rainfall"].shift(-1)
     df = df.dropna()
-    X = df.loc[:, df.columns != "tmr rainfall"]
-    y = df["tmr rainfall"].astype('string')
+    X = df.drop('label', axis=1).values
+    y = df['label'].values
+    print(df['label'].value_counts())
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, shuffle=False, random_state=1234)
 
     clf = LogisticRegression(
-        max_iter=100, solver='sag', n_jobs=5).fit(X_train, y_train)
+        max_iter=10000, solver='sag', n_jobs=5).fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
 

@@ -12,8 +12,9 @@ import joblib
 import pickle
 import msvcrt
 from sklearn.preprocessing import RobustScaler, MinMaxScaler
-from imblearn.over_sampling import ADASYN
-
+from imblearn.over_sampling import SMOTE
+from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix, ConfusionMatrixDisplay
+from imblearn.under_sampling import RandomUnderSampler
 
 # def rainintensity(x):
 #     if x == 0:
@@ -73,27 +74,21 @@ class RainfallMLP(nn.Module):
 
     def __init__(self, num_features, num_classes=6):
         super().__init__()
-        # self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(0.1)
         self.bn = nn.BatchNorm1d(num_features)
 
         self.all_layers = nn.Sequential(
             nn.Linear(num_features, 64),
-            nn.LeakyReLU(),
-            nn.Linear(64, 256),
-            nn.LeakyReLU(),
-            nn.Linear(256, 512),
-            nn.LeakyReLU(),
-            nn.Linear(512, 1024),
-            nn.LeakyReLU(),
-            nn.Linear(1024, 512),
-            nn.LeakyReLU(),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(),
+            nn.LogSoftmax(),
+            nn.Linear(64, 128),
+            nn.LogSoftmax(),
+            nn.Linear(128, 256),
+            nn.LogSoftmax(),
             nn.Linear(256, 128),
-            nn.LeakyReLU(),
+            nn.LogSoftmax(),
             nn.Linear(128, 64),
-            nn.LeakyReLU(),
-            nn.Linear(64, num_features),
+            nn.LogSoftmax(),
+            nn.Linear(64, num_classes),
 
         )
 
@@ -102,7 +97,7 @@ class RainfallMLP(nn.Module):
         Forward function
         '''
         x = self.bn(x)
-        # x = self.dropout(x)
+        x = self.dropout(x)
         return self.all_layers(x)
 
 
@@ -243,8 +238,9 @@ def plot_roc_curves(model, test_loader, device, num_classes=6):
 def main():
     set_seed(1234)
     NUM_EPOCHS = 5000
-    TOLERANCE = 20
+    TOLERANCE = 30
     LR = 1e-3
+    BATCH_SIZE = 128
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -263,11 +259,11 @@ def main():
     temp_df["day_sin"] = temp_df["Day of Year"].map(
         lambda x: np.sin(x / 365 * 2 * np.pi))
     temp_df["day_cos"] = temp_df["Day of Year"].map(
-        lambda x: np.cosh(x / 365 * 2 * np.pi))
+        lambda x: np.cos(x / 365 * 2 * np.pi))
     temp_df["wind_sin"] = temp_df["Prevailing Wind Direction"].map(
-        lambda x: np.cosh(x / 360 * 2 * np.pi))
+        lambda x: np.sin(x / 360 * 2 * np.pi))
     temp_df["wind_cos"] = temp_df["Prevailing Wind Direction"].map(
-        lambda x: np.cosh(x / 360 * 2 * np.pi))
+        lambda x: np.cos(x / 360 * 2 * np.pi))
 
     # for i in range(1, 4):
     #     temp_df[f"previous {i}th day rainfall"] = temp_df["Rainfall"].shift(
@@ -284,17 +280,20 @@ def main():
     df[df.columns] = scaler.fit_transform(df[df.columns])
     df = df.dropna()
     print('Press Any Key to continue...')
-    print(df)
+    print(df.columns)
     msvcrt.getch()
     df.to_csv('train_dataset.csv')
 
+    df = df.drop(["Signal", "Intensity",  "Duration"], axis=1)
+
+    print(df.drop('tmr rainfall', axis=1).columns)
     X = df.drop('tmr rainfall', axis=1).values
     y = df['tmr rainfall'].values
     print(df['tmr rainfall'].value_counts())
     msvcrt.getch()
-    ad = ADASYN(sampling_strategy={1: 3000, 2: 3000,
-                3: 3000, 4: 3000, 5: 3000}, random_state=1234, n_neighbors=6)
-    X, y = ad.fit_resample(X, y)
+    # ad = ADASYN(sampling_strategy={1: 3000, 2: 3000,
+    #             3: 3000, 4: 3000, 5: 3000}, random_state=1234, n_neighbors=6)
+    # X, y = ad.fit_resample(X, y)
     msvcrt.getch()
 
     X_temp, X_test, y_temp, y_test = train_test_split(
@@ -303,18 +302,37 @@ def main():
     X_train, X_val, y_train, y_val = train_test_split(
         X_temp, y_temp, test_size=0.25, random_state=1234, shuffle=True)
 
+    sm = SMOTE(sampling_strategy={1: 2500, 2: 2000,
+                                  3: 1500, 4: 1000, 5: 500}, random_state=1234, k_neighbors=3)
+    X_train, y_train = sm.fit_resample(X_train, y_train)
+    undersample = RandomUnderSampler(
+        sampling_strategy={0: int(len(y_train[y_train == 0]))}, random_state=1234)
+    X_train, y_train = undersample.fit_resample(X_train, y_train)
+
     train_dataset = RainfallDataset(X_train, y_train)
     val_dataset = RainfallDataset(X_val, y_val)
     test_dataset = RainfallDataset(X_test, y_test)
 
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=64)
-    test_loader = DataLoader(test_dataset, batch_size=64)
+    train_loader = DataLoader(
+        train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
     input_size = X_train.shape[1]
     model = RainfallMLP(input_size).to(device)
 
-    loss_fn = nn.CrossEntropyLoss()
+    from sklearn.utils.class_weight import compute_class_weight
+    unique_classes = np.unique(y)
+    print(f"Unique classes in y: {unique_classes}")
+    class_weights = compute_class_weight(
+        'balanced', classes=unique_classes, y=y)
+    # Manually boost weights for Classes 1, 4, 5
+    class_weights[2] *= 2.0  # Increase weight for Class 1
+    class_weights[4] *= 4.0  # Increase weight for Class 4
+    class_weights[5] *= 5.0  # Increase weight for Class 5
+    print(f"Adjusted class weights: {class_weights}")
+    class_weights = torch.FloatTensor(class_weights).to(device)
+    loss_fn = nn.CrossEntropyLoss(weight=class_weights)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
@@ -333,6 +351,8 @@ def main():
     best_model.eval()
     correct = 0
     total = 0
+    all_predictions = []
+    all_labels = []
     with torch.no_grad():
         for inputs, labels in test_loader:
             inputs = inputs.to(device)
@@ -341,12 +361,25 @@ def main():
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            all_predictions.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
     accuracy = 100 * correct / total
     print(f'Test Accuracy: {accuracy:.2f}%')
 
     # Plot ROC curves
     plot_roc_curves(best_model, test_loader, device)
+    mat = confusion_matrix(all_labels, all_predictions)
+    cm_display = ConfusionMatrixDisplay(
+        confusion_matrix=mat, display_labels=[0, 1, 2, 3, 4, 5])
+    f1 = f1_score(all_labels, all_predictions, average='weighted')
+    prec = precision_score(all_labels, all_predictions, average='weighted')
+    rec = recall_score(all_labels, all_predictions, average='weighted')
+    print(f"F1-score: {f1 * 100:.2f}%")
+    print(f"Precision: {prec * 100:.2f}%")
+    print(f"Recall: {rec * 100:.2f}%")
+    cm_display.plot()
+    plt.show()
 
 
 if __name__ == "__main__":
