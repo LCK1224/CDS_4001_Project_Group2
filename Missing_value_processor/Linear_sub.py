@@ -48,7 +48,7 @@ class DataProcessor:
     def linear_regression(self, data, label):
         '''linear regression for subsitute missing value'''
         from sklearn.linear_model import LinearRegression as lr
-        # using log1p to force coeficient to be positive if non_zero == True
+
         reg = lr(n_jobs=5).fit(data, label)
         return reg
 
@@ -62,6 +62,7 @@ class DataProcessor:
         X = self.train_df.iloc[:, col_range]
         y = self.train_df[col_name]
 
+        # using log1p to force coeficient to be positive if non_zero == True
         if positive:
             y = np.log(y + 1)
 

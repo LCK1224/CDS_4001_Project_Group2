@@ -12,17 +12,15 @@ def tempintensity(x):
     '''
     Convert rainfall to oridinal data
     '''
-    if x <= 10.0:
+    if x <= 12.0:
         return 0
-    if x <= 15.0:
+    if x <= 17.0:
         return 1
-    if x <= 20.0:
+    if x <= 22.0:
         return 2
-    if x <= 25.0:
+    if x <= 27:
         return 3
-    if x <= 30.0:
-        return 4
-    return 5
+    return 4
 
 
 def main():
@@ -44,8 +42,8 @@ def main():
     # for i in np.arange(0.1, 3.0, 0.1):
     #     for j in np.arange(0.1, 3.0, 0.1):
 
-    clf = SGDClassifier(random_state=1234, max_iter=1000,
-                        tol=1e-3).fit(X_train, y_train)
+    clf = LinearSVC(random_state=1234,
+                    class_weight='balanced').fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     # accuracy = accuracy_score(y_test, y_pred)
     # best_acc = accuracy if accuracy > best_acc else best_acc
@@ -60,7 +58,7 @@ def main():
     acc = accuracy_score(y_test, y_pred)
     mat = confusion_matrix(y_test, y_pred)
     cm_display = ConfusionMatrixDisplay(
-        confusion_matrix=mat, display_labels=[0, 1, 2, 3, 4, 5])
+        confusion_matrix=mat, display_labels=[0, 1, 2, 3, 4])
     print(f'Accuracy: {acc * 100:.2f}%')
     print(f"F1-score: {f1 * 100:.2f}%")
     print(f"Precision: {prec * 100:.2f}%")
