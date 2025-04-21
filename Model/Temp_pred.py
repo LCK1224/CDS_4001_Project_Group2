@@ -11,30 +11,29 @@ import random
 import joblib
 import pickle
 import msvcrt
-from sklearn.preprocessing import RobustScaler
-from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import RobustScaler, StandardScaler, MinMaxScaler
+from imblearn.over_sampling import SMOTE, ADASYN
 from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix, ConfusionMatrixDisplay
 from imblearn.under_sampling import EditedNearestNeighbours
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
+from sklearn.decomposition import KernelPCA
 
 
 def tempintensity(x):
     '''
     Convert rainfall to oridinal data
     '''
-    if x <= 10.0:
+    if x <= 12.0:
         return 0
-    if x <= 15.0:
+    if x <= 17.0:
         return 1
-    if x <= 20.0:
+    if x <= 22.0:
         return 2
-    if x <= 25.0:
+    if x <= 27.0:
         return 3
-    if x <= 30.0:
-        return 4
-    return 5
+    return 4
 # 4.9 - 32.4
 
 
@@ -62,24 +61,28 @@ class TemperatureMLP(nn.Module):
     MLP Model
     '''
 
-    def __init__(self, num_features, num_classes=6):
+    def __init__(self, num_features, num_classes=5):
         super().__init__()
-        self.dropout = nn.Dropout1d(0.1)
+        self.dropout = nn.Dropout1d(0)
         print(num_features)
-        self.bn = nn.GroupNorm(3, num_features)
+        self.bn = nn.GroupNorm(5, num_features)
 
         self.all_layers = nn.Sequential(
-            nn.Linear(num_features, 128),
+            nn.Linear(num_features, 32),
             nn.LeakyReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(32, 256),
             nn.LeakyReLU(),
             nn.Linear(256, 512),
             nn.LeakyReLU(),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(),
-            nn.Linear(256, 128),
-            nn.LeakyReLU(),
-            nn.Linear(128, num_classes),
+            nn.Linear(512, 1024),
+            nn.Sigmoid(),
+            nn.Linear(1024, 128),
+            nn.Sigmoid(),
+            nn.Linear(128, 64),
+            nn.Sigmoid(),
+            nn.Linear(64, 32),
+            nn.Sigmoid(),
+            nn.Linear(32, num_classes),
         )
 
     def forward(self, x):
@@ -88,8 +91,6 @@ class TemperatureMLP(nn.Module):
         '''
         x = self.bn(x)
         x = self.dropout(x)
-        if self.training:
-            x = x + torch.randn_like(x) * 0.1
         return self.all_layers(x)
 
 
@@ -230,8 +231,8 @@ def plot_roc_curves(model, test_loader, device, num_classes=6):
 def main():
     set_seed(1234)
     NUM_EPOCHS = 10000
-    TOLERANCE = 50
-    LR = 1e-6
+    TOLERANCE = 150
+    LR = 1e-5
     BATCH_SIZE = 256
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -241,15 +242,17 @@ def main():
     path = r'Data/cleaned_dataset.csv'
     df = pd.read_csv(path)
     df["Mean Temperature"] = df["Mean Temperature"].apply(
-        tempintensity).shift(1)
+        tempintensity).shift(-1)
+
     df = df.dropna()
+
     scaler = RobustScaler()
     scaled_df = df.columns[~df.columns.isin(
-        ["day_sin", "day_cos", "win_sin", "win_cos", "Mean Temperature"])]
+        ["day_sin", "day_cos", "wind_sin", "wind_cos", "Mean Temperature"])]
     df.loc[:, scaled_df] = scaler.fit_transform(df[scaled_df])
 
     # df[df.columns] = scaler.fit_transform(df[df.columns])
-    print('Press Any Key to continue...')
+    print('Press Any Key to continue..')
     print(df.columns)
     msvcrt.getch()
     df.to_csv(r'Data/train_dataset_temp.csv')
@@ -260,41 +263,54 @@ def main():
     msvcrt.getch()
 
     X_temp, X_test, y_temp, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=1234, shuffle=True)
+        X, y, test_size=0.2, random_state=1234, shuffle=False)
 
     X_train, X_val, y_train, y_val = train_test_split(
         X_temp, y_temp, test_size=0.25, random_state=1234, shuffle=True)
-    sm = SMOTE(sampling_strategy={0: 1500, 5: 1500},
-               random_state=1234, k_neighbors=3)
-    X_train, y_train = sm.fit_resample(X_train, y_train)
+
+    pca = KernelPCA(random_state=1234, n_components=5)
+    X_train_pca = pca.fit_transform(X_train)
+    X_test_pca = pca.fit_transform(X_test)
+    X_val_pca = pca.fit_transform(X_val)
+
+    X_train = np.hstack((X_train, X_train_pca, X_train_pca**2))
+    X_test = np.hstack((X_test, X_test_pca, X_test_pca**2))
+    X_val = np.hstack((X_val, X_val_pca, X_val_pca**2))
 
     rf_clf = RandomForestClassifier(
-        n_estimators=120, random_state=1234, n_jobs=5).fit(X_train, y_train)
+        random_state=1234, n_jobs=5, n_estimators=200, max_depth=10).fit(X_train, y_train)
     rf_train_prob = rf_clf.predict_proba(X_train)[:, 1]
     rf_test_prob = rf_clf.predict_proba(X_test)[:, 1]
     rf_val_prob = rf_clf.predict_proba(X_val)[:, 1]
 
-    hg_clf = HistGradientBoostingClassifier(
-        random_state=1234).fit(X_train, y_train)
-    hg_train_prob = hg_clf.predict_proba(X_train)[:, 1]
-    hg_test_prob = hg_clf.predict_proba(X_test)[:, 1]
-    hg_val_prob = hg_clf.predict_proba(X_val)[:, 1]
+    # hg_clf = HistGradientBoostingClassifier(
+    #     random_state=1234).fit(X_train, y_train)
+    # hg_train_prob = hg_clf.predict_proba(X_train)[:, 1]
+    # hg_test_prob = hg_clf.predict_proba(X_test)[:, 1]
+    # hg_val_prob = hg_clf.predict_proba(X_val)[:, 1]
 
-    xgb_clf = XGBClassifier(
-        n_estimators=200,
-        random_state=1234,
-        eval_metric='mlogloss').fit(X_train, y_train)
-    xgb_train_prob = xgb_clf.predict_proba(X_train)[:, 1]
-    xgb_test_prob = xgb_clf.predict_proba(X_test)[:, 1]
-    xgb_val_prob = xgb_clf.predict_proba(X_val)[:, 1]
+    # xgb_clf = LGBMClassifier(
+    #     n_estimators=200,
+    #     class_weight='balanced',
+    #     random_state=1234
+    # ).fit(X_train, y_train).fit(X_train, y_train)
+    # lgbm_train_prob = xgb_clf.predict_proba(X_train)[:, 1]
+    # lgbm_test_prob = xgb_clf.predict_proba(X_test)[:, 1]
+    # lgmb_val_prob = xgb_clf.predict_proba(X_val)[:, 1]
+
+    # X_train = scaler.fit_transform(X_train)
+    # X_test = scaler.fit_transform(X_test)
+    # X_val = scaler.fit_transform(X_val)
 
     X_train = np.hstack(
-        (X_train, rf_train_prob.reshape(-1, 1), hg_train_prob.reshape(-1, 1), xgb_train_prob.reshape(-1, 1)))
+        (X_train, rf_train_prob.reshape(-1, 1)))
     X_test = np.hstack(
-        (X_test, rf_test_prob.reshape(-1, 1), hg_test_prob.reshape(-1, 1), xgb_test_prob.reshape(-1, 1)))
+        (X_test, rf_test_prob.reshape(-1, 1)))
 
-    X_val = np.hstack((X_val, rf_val_prob.reshape(-1, 1),
-                      hg_val_prob.reshape(-1, 1), xgb_val_prob.reshape(-1, 1)))
+    X_val = np.hstack((X_val, rf_val_prob.reshape(-1, 1)))
+
+    # sm = SMOTE(sampling_strategy='not majority', random_state=1234)
+    # X_train, y_train = sm.fit_resample(X_train, y_train)
 
     train_dataset = TemperatureDataset(X_train, y_train)
     val_dataset = TemperatureDataset(X_val, y_val)
@@ -348,10 +364,10 @@ def main():
     print(f'Test Accuracy: {accuracy:.2f}%')
 
     # Plot ROC curves
-    plot_roc_curves(best_model, test_loader, device)
+    # plot_roc_curves(best_model, test_loader, device)
     mat = confusion_matrix(all_labels, all_predictions)
     cm_display = ConfusionMatrixDisplay(
-        confusion_matrix=mat, display_labels=set(y_test))
+        confusion_matrix=mat, display_labels=[0, 1, 2, 3, 4])
     f1 = f1_score(all_labels, all_predictions, average='weighted')
     prec = precision_score(all_labels, all_predictions, average='weighted')
     rec = recall_score(all_labels, all_predictions, average='weighted')

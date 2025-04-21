@@ -1,34 +1,181 @@
 from sklearn.ensemble import VotingClassifier
-import logistic
-import RF
-import SVM
-import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import RobustScaler
+from sklearn.base import BaseEstimator, ClassifierMixin
+import pandas as pd
+import numpy as np
+import torch
+import pickle
+from Temp_pred import TemperatureMLP, TemperatureDataset
+import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix, ConfusionMatrixDisplay
 
-df = pd.read_csv(r"cleaned_datasetwlabeltodayyesterdaytmr.csv")
-df = df.drop(["yesterday rainfall", "Rainfall label"], axis=1)
-df["prev_rainfall"] = df["Rainfall"].shift(1)
-# df["next_rainfall"] = df["Rainfall"].shift(-1)
+# Define the intensity mapping function
+
+
+def tempintensity(x):
+    if x <= 12.0:
+        return 0
+    if x <= 17.0:
+        return 1
+    if x <= 22.0:
+        return 2
+    if x <= 27.0:
+        return 3
+    return 4
+
+
+def plot_roc_curves(model, test_loader, device, num_classes=6):
+    model.eval()
+    y_true = []
+    y_score = []
+
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            outputs = model(inputs)
+            probabilities = torch.softmax(outputs, dim=1)
+            y_true.extend(labels.cpu().numpy())
+            y_score.extend(probabilities.cpu().numpy())
+
+    y_true = np.array(y_true)
+    y_score = np.array(y_score)
+
+    # Compute ROC curve and ROC area for each class
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+
+    # Create one-hot encoding of true labels
+    y_true_onehot = np.eye(num_classes)[y_true]
+
+    plt.figure(figsize=(10, 6))
+    colors = cycle(['blue', 'red', 'green', 'yellow', 'purple', 'orange'])
+    for i, color in zip(range(num_classes), colors):
+        fpr[i], tpr[i], _ = roc_curve(y_true_onehot[:, i], y_score[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
+        plt.plot(fpr[i], tpr[i], color=color, lw=2,
+                 label=f'ROC curve class {i} (AUC = {roc_auc[i]:.2f})')
+
+    plt.plot([0, 1], [0, 1], 'k--', lw=2)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC) Curves')
+    plt.legend(loc="lower right")
+    plt.grid(True)
+    plt.savefig('roc_curves.png')
+    plt.close()
+
+
+# Device configuration
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+# Load and prepare data
+path = r'Data/cleaned_dataset.csv'
+df = pd.read_csv(path)
+df["Mean Temperature"] = df["Mean Temperature"].apply(tempintensity).shift(-1)
 df = df.dropna()
-X = df.loc[:, df.columns != "tmr rainfall"]
-y = df["tmr rainfall"]
+
+# Scale features
+scaler = RobustScaler()
+scaled_df = df.columns[~df.columns.isin(
+    ["day_sin", "day_cos", "win_sin", "win_cos", "Mean Temperature"])]
+df.loc[:, scaled_df] = scaler.fit_transform(df[scaled_df])
+
+# Prepare features and target
+X = df.drop('Mean Temperature', axis=1).values
+# Ensure y is integer for classification
+y = df['Mean Temperature'].values.astype(np.int64)
+
+# Split data
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, shuffle=False, random_state=1234)
+    X, y, test_size=0.2, random_state=1234, shuffle=False)
 
-clf1 = logistic.main()
-clf2 = RF.main()
-# clf3 = SVM.main()
-print(clf1)
-print(clf2)
-# print(clf3)
+# Custom wrapper for pre-trained PyTorch model
 
-ensemble = VotingClassifier(estimators=[
-    ('lr', clf1),
-    ('rf', clf2),
-    # Use 'soft' for probability averaging if models support it
-], voting='soft', n_jobs=6)
 
-y_pred = ensemble.fit(X_train, y_train).predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(accuracy)
+class MLPWrapper(BaseEstimator, ClassifierMixin):
+    def __init__(self, model, device='cpu'):
+        self.model = model
+        self.device = device
+        self.classes_ = np.arange(5)  # Initialize classes_ attribute
+
+    def fit(self, X, y):
+        # No training needed since model is pre-trained
+        # Set classes_ based on unique labels in y
+        self.classes_ = np.unique(y)
+        return self
+
+    def predict(self, X):
+        self.model.eval()
+        X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+        with torch.no_grad():
+            outputs = self.model(X_tensor)
+            _, predicted = torch.max(outputs, 1)
+        return predicted.cpu().numpy()
+
+    def predict_proba(self, X):
+        self.model.eval()
+        X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+        with torch.no_grad():
+            outputs = self.model(X_tensor)
+            probabilities = torch.softmax(outputs, dim=1)
+        return probabilities.cpu().numpy()
+
+
+# Load pre-trained MLP model
+with open('best_mlp_model.pkl', 'rb') as file:
+    best_model = pickle.load(file)
+    print("Best MLP model loaded")
+
+# Instantiate wrapped MLP
+mlp = MLPWrapper(model=best_model, device=device)
+
+# Define scikit-learn models
+rf_clf = RandomForestClassifier(
+    random_state=1234, max_depth=10, n_estimators=200).fit(X_train, y_train)
+hist_clf = HistGradientBoostingClassifier(
+    random_state=1234).fit(X_train, y_train)
+
+
+print("Training VotingClassifier...")
+mlp_probs = mlp.predict_proba(X_test)
+rf_probs = rf_clf.predict_proba(X_test)
+hist_probs = hist_clf.predict_proba(X_test)
+ensemble_probs = (mlp_probs + rf_probs + hist_probs) / 3
+y_pred_manual = np.argmax(ensemble_probs, axis=1)
+print(
+    f'Manual Ensemble Accuracy: {accuracy_score(y_test, y_pred_manual) * 100:.2f}%')
+accuracy = accuracy_score(y_test, y_pred_manual)
+print(f'Voting Classifier Test Accuracy: {accuracy * 100:.2f}%')
+
+
+mlp_pred = mlp.predict(X_test)
+rf_pred = rf_clf.fit(X_train, y_train).predict(X_test)
+hist_pred = hist_clf.fit(X_train, y_train).predict(X_test)
+
+print(f'MLP Test Accuracy: {accuracy_score(y_test, mlp_pred) * 100:.2f}%')
+print(
+    f'Random Forest Test Accuracy: {accuracy_score(y_test, rf_pred) * 100:.2f}%')
+print(
+    f'HistGradientBoosting Test Accuracy: {accuracy_score(y_test, hist_pred) * 100:.2f}%')
+
+f1 = f1_score(y_test, y_pred_manual, average='weighted')
+prec = precision_score(y_test, y_pred_manual, average='weighted')
+rec = recall_score(y_test, y_pred_manual, average='weighted')
+acc = accuracy_score(y_test, y_pred_manual)
+mat = confusion_matrix(y_test, y_pred_manual)
+cm_display = ConfusionMatrixDisplay(
+    confusion_matrix=mat, display_labels=[0, 1, 2, 3, 4])
+print(f'Accuracy: {acc * 100:.2f}%')
+print(f"F1-score: {f1 * 100:.2f}%")
+print(f"Precision: {prec * 100:.2f}%")
+print(f"Recall: {rec * 100:.2f}%")
+cm_display.plot()
+plt.show()
