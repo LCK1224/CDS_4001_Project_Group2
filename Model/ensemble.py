@@ -8,9 +8,12 @@ import pandas as pd
 import numpy as np
 import torch
 import pickle
-from Temp_pred import TemperatureMLP, TemperatureDataset
+from Temp_Pred_mlp import TemperatureMLP, TemperatureDataset
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.decomposition import KernelPCA
+from sklearn.metrics import roc_curve, auc
+from itertools import cycle
 
 # Define the intensity mapping function
 
@@ -72,31 +75,6 @@ def plot_roc_curves(model, test_loader, device, num_classes=6):
     plt.close()
 
 
-# Device configuration
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-
-# Load and prepare data
-path = r'Data/cleaned_dataset.csv'
-df = pd.read_csv(path)
-df["Mean Temperature"] = df["Mean Temperature"].apply(tempintensity).shift(-1)
-df = df.dropna()
-
-# Scale features
-scaler = RobustScaler()
-scaled_df = df.columns[~df.columns.isin(
-    ["day_sin", "day_cos", "win_sin", "win_cos", "Mean Temperature"])]
-df.loc[:, scaled_df] = scaler.fit_transform(df[scaled_df])
-
-# Prepare features and target
-X = df.drop('Mean Temperature', axis=1).values
-# Ensure y is integer for classification
-y = df['Mean Temperature'].values.astype(np.int64)
-
-# Split data
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=1234, shuffle=False)
-
 # Custom wrapper for pre-trained PyTorch model
 
 
@@ -104,11 +82,9 @@ class MLPWrapper(BaseEstimator, ClassifierMixin):
     def __init__(self, model, device='cpu'):
         self.model = model
         self.device = device
-        self.classes_ = np.arange(5)  # Initialize classes_ attribute
+        self.classes_ = np.arange(5)
 
     def fit(self, X, y):
-        # No training needed since model is pre-trained
-        # Set classes_ based on unique labels in y
         self.classes_ = np.unique(y)
         return self
 
@@ -129,19 +105,50 @@ class MLPWrapper(BaseEstimator, ClassifierMixin):
         return probabilities.cpu().numpy()
 
 
+# Device configuration
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+# Load and prepare data
+df = pd.read_csv(r"Data\cleaned_dataset.csv")
+df["Mean Temperature"] = df["Mean Temperature"].shift(-1)
+df["Mean Temperature"] = df["Mean Temperature"].map(
+    lambda x: tempintensity(x))
+df["Mean Temperature"] = df["Mean Temperature"].astype(int)
+
+scaler = RobustScaler()
+scaled_df = df.columns[~df.columns.isin(
+    ["day_sin", "day_cos", "wind_sin", "wind_cos", "Mean Temperature"])]
+df.loc[:, scaled_df] = scaler.fit_transform(df[scaled_df])
+
+df = df.dropna()
+
+X = df.drop('Mean Temperature', axis=1).values
+y = df['Mean Temperature'].values
+print(df['Mean Temperature'].value_counts())
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, shuffle=False, random_state=1234)
+
+pca = KernelPCA(n_components=5, kernel='poly',
+                random_state=1234)
+pca_train = pca.fit_transform(X_train)
+pca_test = pca.fit_transform(X_test)
+
+X_train = np.hstack(
+    (X_train, pca_train, pca_train**2, pca_train, pca_train**2))
+print(X_train.shape)
+X_test = np.hstack((X_test, pca_test, pca_test**2, pca_test, pca_test**2))
 # Load pre-trained MLP model
 with open('best_mlp_model.pkl', 'rb') as file:
     best_model = pickle.load(file)
     print("Best MLP model loaded")
 
-# Instantiate wrapped MLP
-mlp = MLPWrapper(model=best_model, device=device)
 
-# Define scikit-learn models
+mlp = MLPWrapper(model=best_model, device=device)
 rf_clf = RandomForestClassifier(
-    random_state=1234, max_depth=10, n_estimators=200).fit(X_train, y_train)
+    random_state=1234, max_depth=10, n_estimators=850, n_jobs=-1).fit(X_train, y_train)
 hist_clf = HistGradientBoostingClassifier(
-    random_state=1234).fit(X_train, y_train)
+    random_state=1234, max_depth=20, max_bins=127, max_iter=125).fit(X_train, y_train)
 
 
 print("Training VotingClassifier...")
@@ -151,9 +158,7 @@ hist_probs = hist_clf.predict_proba(X_test)
 ensemble_probs = (mlp_probs + rf_probs + hist_probs) / 3
 y_pred_manual = np.argmax(ensemble_probs, axis=1)
 print(
-    f'Manual Ensemble Accuracy: {accuracy_score(y_test, y_pred_manual) * 100:.2f}%')
-accuracy = accuracy_score(y_test, y_pred_manual)
-print(f'Voting Classifier Test Accuracy: {accuracy * 100:.2f}%')
+    f'Voting Classifier Test Accuracy: {accuracy_score(y_test, y_pred_manual) * 100:.2f}%')
 
 
 mlp_pred = mlp.predict(X_test)

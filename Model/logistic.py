@@ -18,7 +18,7 @@ def tempintensity(x):
         return 1
     if x <= 22.0:
         return 2
-    if x <= 27.0:
+    if x <= 27:
         return 3
     return 4
 
@@ -54,8 +54,7 @@ def main():
     print(f"Recall: {rec * 100:.2f}%")
     # cm_display.plot()
     # plt.show()
-    plt.plot(y_test)
-    plt.plot(y_pred)
+    cm_display.plot()
     plt.show()
 
 

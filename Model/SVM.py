@@ -19,7 +19,7 @@ def tempintensity(x):
         return 1
     if x <= 22.0:
         return 2
-    if x <= 27.0:
+    if x <= 27:
         return 3
     return 4
 
@@ -43,7 +43,8 @@ def main():
     # for i in np.arange(0.1, 3.0, 0.1):
     #     for j in np.arange(0.1, 3.0, 0.1):
 
-    clf = LinearSVC(random_state=1234).fit(X_train, y_train)
+    clf = LinearSVC(random_state=1234,
+                    class_weight='balanced').fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     # accuracy = accuracy_score(y_test, y_pred)
     # best_acc = accuracy if accuracy > best_acc else best_acc
