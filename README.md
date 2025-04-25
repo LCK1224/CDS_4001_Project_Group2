@@ -10,7 +10,7 @@ Predicting temperature plays a crucial role in various aspects of modern life, f
 
 Rising temperatures and extreme weather conditions—such as heat waves and cold snaps—have direct consequences on agriculture, energy consumption, and public health. Accurate temperature predictions enable cities to prepare for heat-related health risks such as heat exhaustion, heat stroke, and dehydration. They also help farmers optimize crop schedules to maximize yield and efficiency.
 
-![Climate Change](images\climate_change.jpg)
+![Climate Change](images/climate_change.jpg)
 
 ### Economic & Social Implications
 
