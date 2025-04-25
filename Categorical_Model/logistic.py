@@ -53,8 +53,6 @@ def main():
     print(f"F1-score: {f1 * 100:.2f}%")
     print(f"Precision: {prec * 100:.2f}%")
     print(f"Recall: {rec * 100:.2f}%")
-    # cm_display.plot()
-    # plt.show()
     cm_display.plot()
     plt.show()
 

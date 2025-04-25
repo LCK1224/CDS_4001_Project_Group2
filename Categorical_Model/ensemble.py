@@ -33,14 +33,12 @@ def tempintensity(x):
 
 
 class MLPWrapper(BaseEstimator, ClassifierMixin):
+    '''To Convert The Pytorch Object Like A Sklearn Object'''
+
     def __init__(self, model, device='cpu'):
         self.model = model
         self.device = device
         self.classes_ = np.arange(5)
-
-    def fit(self, X, y):
-        self.classes_ = np.unique(y)
-        return self
 
     def predict(self, X):
         self.model.eval()
@@ -110,9 +108,9 @@ mlp_probs = mlp.predict_proba(X_test)
 rf_probs = rf_clf.predict_proba(X_test)
 hist_probs = hist_clf.predict_proba(X_test)
 ensemble_probs = (mlp_probs + rf_probs + hist_probs) / 3
-y_pred_manual = np.argmax(ensemble_probs, axis=1)
+y_pred_ensemble = np.argmax(ensemble_probs, axis=1)
 print(
-    f'Voting Classifier Test Accuracy: {accuracy_score(y_test, y_pred_manual) * 100:.2f}%')
+    f'Voting Classifier Test Accuracy: {accuracy_score(y_test, y_pred_ensemble) * 100:.2f}%')
 
 
 mlp_pred = mlp.predict(X_test)
@@ -125,11 +123,11 @@ print(
 print(
     f'HistGradientBoosting Test Accuracy: {accuracy_score(y_test, hist_pred) * 100:.2f}%')
 
-f1 = f1_score(y_test, y_pred_manual, average='weighted')
-prec = precision_score(y_test, y_pred_manual, average='weighted')
-rec = recall_score(y_test, y_pred_manual, average='weighted')
-acc = accuracy_score(y_test, y_pred_manual)
-mat = confusion_matrix(y_test, y_pred_manual)
+f1 = f1_score(y_test, y_pred_ensemble, average='weighted')
+prec = precision_score(y_test, y_pred_ensemble, average='weighted')
+rec = recall_score(y_test, y_pred_ensemble, average='weighted')
+acc = accuracy_score(y_test, y_pred_ensemble)
+mat = confusion_matrix(y_test, y_pred_ensemble)
 cm_display = ConfusionMatrixDisplay(
     confusion_matrix=mat, display_labels=[0, 1, 2, 3, 4])
 print(f'Accuracy: {acc * 100:.2f}%')
