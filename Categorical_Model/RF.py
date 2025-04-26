@@ -78,7 +78,9 @@ def main():
     print(f"Precision: {prec * 100:.2f}%")
     print(f"Recall: {rec * 100:.2f}%")
     cm_display.plot()
-    plt.show()
+    plt.savefig('Categorical_Model/RF_confusion_matrix.png',
+                dpi=300, bbox_inches='tight')
+    print("Confusion Matrix is saved as Categorical_Model/RF_confusion_matrix.png")
 
     y_test_bin = label_binarize(y_test, classes=[0, 1, 2, 3, 4])
     y_pred_prob = clf.predict_proba(X_test)

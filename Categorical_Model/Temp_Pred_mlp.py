@@ -344,7 +344,9 @@ def main():
     print(f"Precision: {prec * 100:.2f}%")
     print(f"Recall: {rec * 100:.2f}%")
     cm_display.plot()
-    plt.show()
+    plt.savefig('Categorical_Model/MLP_confusion_matrix.png',
+                dpi=300, bbox_inches='tight')
+    print("Confusion Matrix is saved as Categorical_Model/MLP_confusion_matrix.png")
 
 
 if __name__ == "__main__":
